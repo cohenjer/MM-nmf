@@ -78,6 +78,7 @@ Wmm = Wmm/np.sqrt(np.sum(Wmm**2,axis=0))
 #Hmm = Hmm/np.sqrt(np.sum(Hmm**2,axis=1))
 
 # Visualization of the results
+# TODO: PERMUTE COLUMNS SO THAT THEY MATCH
 plt.subplot(3,5,2)
 plt.plot(W)
 plt.legend([1,2,3,4,5])
