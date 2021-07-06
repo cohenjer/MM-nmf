@@ -63,9 +63,9 @@ print(errmm)
 plt.figure()
 # no initial error in HALS error
 xhals = np.linspace(0,tHALS,100)
-xmm = np.linspace(0,tmm,101)
+xmm = np.linspace(0,tmm,100)
 plt.semilogy(xhals,out[2])
-plt.semilogy(xmm,out2[0])
+plt.semilogy(xmm,out2[0][1:])
 plt.xlabel('fake time (iter/avg iter time)')
 plt.legend(['HALS', 'MM'])
 
