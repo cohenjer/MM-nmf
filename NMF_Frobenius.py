@@ -114,8 +114,10 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner):
 
     """
 
+
     W = W0.copy()
     H = H0.copy()
+    Vnorm = la.norm(Vorig) ** 2
     gamma = 1.9  # arbitrary??
     #error_norm = np.prod(Vorig.shape)
     error = [la.norm(Vorig-W.dot(H))**2]  #/error_norm]
@@ -155,8 +157,10 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner):
             #aux_W =  auxiliary(Hess2, B2, W)
             W = np.maximum(W + gamma*aux_W*(B2 - Hess2(W)),0)
 
-        # error calc can be improved using A2 and B2
-        error.append(la.norm(Vorig- W.dot(H)) **2)  #/error_norm)
+        #error.append(la.norm(Vorig- W.dot(H)) **2)  #/error_norm)
+        # fast error computation
+        C = np.dot(W.T,W)
+        error.append(Vnorm + np.sum(C.flatten() * A2.flatten()) - 2*np.inner(B2.flatten(), W.flatten()))
         print('reconstruction error', error[-1])
         # Check if the error is smalle enough to stop the algorithm
         #if (error[k] <1e-7):
