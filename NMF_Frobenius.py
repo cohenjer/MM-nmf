@@ -89,15 +89,14 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1
             else: 
                 W = np.maximum((W*VHt)/ (W@HHt), epsilon)
 
-        WH = W.dot(H)
         # compute the error
-        error.append(la.norm(Vorig- WH)/error_norm)
+        error.append(la.norm(Vorig- W@H)/error_norm)
         # check if the err is small enough to stop 
         if (error[-1] < tol):
-            if not legacy:
-                # Putting zeroes where we thresholded with epsilon
-                W[W==epsilon]=0 
-                H[H==epsilon]=0
+            #if not legacy:
+            #   # Putting zeroes where we thresholded with epsilon
+            #   W[W==epsilon]=0 
+            #   H[H==epsilon]=0
             return error, W, H
 
     return error, W, H
@@ -105,7 +104,7 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1
 #------------------------------------
 #  NMF algorithm proposed version
  
-def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7):
+def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -152,7 +151,7 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7):
         B1 = W.T.dot(V)
         for ih in range(NbIter_inner):
             aux_H = auxiliary(Hess1, B1, H)   
-            H =  np.maximum(H + gamma*aux_H*(B1 - Hess1(H)),0)
+            H =  np.maximum(H + gamma*aux_H*(B1 - Hess1(H)), epsilon)
             # ii = np.all((H>=0))
             # if ~ii:
             #     print('algo stop at '+str(k))
@@ -164,9 +163,9 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7):
         B2 = V.dot(H.T)
         for iw in range(NbIter_inner):
             aux_W =  auxiliary(Hess2, B2, W) 
-            W = np.maximum(W + gamma*aux_W*(B2 - Hess2(W)),0)
+            W = np.maximum(W + gamma*aux_W*(B2 - Hess2(W)), epsilon)
                
-        
+        print('toto') 
         
         error.append(la.norm(Vorig- W.dot(H))/error_norm)
         # Check if the error is smalle enough to stop the algorithm 
@@ -349,8 +348,9 @@ def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
     error_norm = np.prod(Vorig.shape)
     error = [la.norm(Vorig- W.dot(H))/error_norm]
     #inner_iter_total = 0
-    test   = 1 # 
-    while (test> tol): 
+    #test   = 1 # 
+    #while (test> tol): 
+    while (error[-1]> tol): 
         Aw = W.T.dot(W)
         Lw = 1/la.norm(Aw,2)
         H     = OGM_H(V, W, H, Aw, Lw, nb_inner)
@@ -359,10 +359,11 @@ def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
         Lh = 1/la.norm(Ah,2)
         W     = OGM_W(V, W, H, Ah, Lh, nb_inner)
         #inner_iter_total = inner_iter_total+20
-        WH = W.dot(H)
-        dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
-        test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER
-        error.append(la.norm(Vorig- WH)/error_norm)
+        #WH = W.dot(H)
+        #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
+        #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER
+        #error.append(la.norm(Vorig- WH)/error_norm)
+        error.append(la.norm(Vorig- W@H)/error_norm)
         
     
     return error, W, H#, inner_iter_total
@@ -374,8 +375,9 @@ def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
     error_norm = np.prod(Vorig.shape)
     error = [la.norm(Vorig- W.dot(H))/error_norm]
     #inner_iter_total = 0
-    test   = 1 # 
-    while (test> tol): 
+    #test   = 1 # 
+    #while (test> tol): 
+    while error[-1]>tol:
         
         #----fixed w estimate H
         
@@ -396,12 +398,14 @@ def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
         # Independent of X, computation time could be saved
               
         Lh = sqrtB2/(sqrtB2.dot(A2)+1e-10)        
-        W     = OGM_W(V, W, H, A2, Lh, nb_inner)
+        W = OGM_W(V, W, H, A2, Lh, nb_inner)
         #inner_iter_total = inner_iter_total+20
-        WH = W.dot(H)
-        dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
-        test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER
-        error.append(la.norm(Vorig- WH)/error_norm)
+        #WH = W.dot(H)
+        #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
+        #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 
+        # 21 p.2885 -> A RETRAVAILLER
+        #error.append(la.norm(Vorig- WH)/error_norm)
+        error.append(la.norm(Vorig- W@H)/error_norm)
         
     
     return error, W, H#, inner_iter_total
