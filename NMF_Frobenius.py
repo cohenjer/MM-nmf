@@ -65,6 +65,8 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
         non-negative estimated matrix.
     W : MxR array
         non-negative esimated matrix.
+    toc : darray
+        vector containing the cummulative runtimes at each iteration
 
     """
  
@@ -74,7 +76,8 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
     error_norm = np.prod(V.shape)
     error = [la.norm(V- W@H)/error_norm]
     Vnorm_sq = np.linalg.norm(V)**2
-     
+    toc = [0] 
+    tic = time.time()
     
     for k in range(NbIter):
         
@@ -99,15 +102,16 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
         # compute the error
         err = compute_error(Vnorm_sq,W,HHt,VHt,error_norm)
         error.append(err)
+        toc.append(time.time() - tic)
         # check if the err is small enough to stop 
         if (error[-1] < tol):
             #if not legacy:
             #   # Putting zeroes where we thresholded with epsilon
             #   W[W==epsilon]=0 
             #   H[H==epsilon]=0
-            return error, W, H
+            return error, W, H, toc
 
-    return error, W, H
+    return error, W, H, toc
 
 #------------------------------------
 #  NMF algorithm proposed version
@@ -141,6 +145,8 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         non-negative estimated matrix.
     W : MxR array
         non-negative estimated matrix.
+    toc : darray
+        vector containing the cummulative runtimes at each iteration
 
     """
     
@@ -150,6 +156,9 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
     error_norm = np.prod(V.shape)
     error = [la.norm(V-W.dot(H))/error_norm]
     Vnorm_sq = np.linalg.norm(V)**2
+    toc = [0] 
+    tic = time.time()
+
     for k in range(NbIter):
         
         # FIXED W ESTIMATE H
@@ -174,6 +183,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
                
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
         error.append(err)
+        toc.append(time.time() - tic)
         # Check if the error is smalle enough to stop the algorithm 
         if (error[-1] <tol):            
             print('algo stop at iteration =  '+str(k))
@@ -254,6 +264,8 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
         non-negative estimated matrix.G
     W : MxR array
         non-negative esimated matrix.
+    toc : darray
+        vector containing the cummulative runtimes at each iteration
 
     """
     
@@ -264,6 +276,8 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
     error_norm = np.prod(V.shape)
     error = [la.norm(V- W.dot(H))/error_norm]
     Vnorm_sq = np.linalg.norm(V)**2
+    toc = [0] 
+    tic = time.time()
      
     #inner_iter_total = 0 
     
@@ -287,14 +301,15 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
         # compute the error 
         err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
         error.append(err)
-        
+        toc.append(time.time()-tic)
+
         # Check if the error is small enough to stop the algorithm 
         if (error[-1] <tol):
         
-            return error, W, H#, (k+inner_iter_total)
+            return error, W, H, toc#, (k+inner_iter_total)
             
         
-    return error, W, H #, (k+inner_iter_total)
+    return error, W, H, toc #, (k+inner_iter_total)
 
 
 
@@ -352,6 +367,9 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
     error_norm = np.prod(V.shape)
     error = [la.norm(V- W.dot(H))/error_norm]
     Vnorm_sq = np.linalg.norm(V)**2
+    toc = [0] 
+    tic = time.time()
+
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
@@ -373,10 +391,11 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
         #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER
         err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
         error.append(err)
+        toc.append(time.time()-tic)
         iter+=1
         
     
-    return error, W, H#, inner_iter_total
+    return error, W, H, toc#, inner_iter_total
 
 
 def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1e-8):
@@ -385,6 +404,8 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
     error_norm = np.prod(V.shape)
     error = [la.norm(V- W.dot(H))/error_norm]
     Vnorm_sq = np.linalg.norm(V)**2
+    toc = [0] 
+    tic = time.time()
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
@@ -420,9 +441,10 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         # 21 p.2885 -> A RETRAVAILLER
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
         error.append(err)
+        toc.append(time.time()-tic)
         iter += 1
     
-    return error, W, H#, inner_iter_total
+    return error, W, H, toc#, inner_iter_total
 
 
 
