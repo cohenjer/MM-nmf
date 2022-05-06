@@ -17,7 +17,7 @@ import time
 #------------------------------------
 # PMF algorithm version Lee and Seung
 
-def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter):
+def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -40,6 +40,13 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter):
         matrix with all entries are non-negative.
     NbIter : int
         the maximum number of iterations.
+    NbIter_inner: int
+        number of inner loops
+    legacy: bool
+        If True, implements the original update rule of Lee and Seung.
+        If False, uses max( update, epsilon ) which ensures convergence with the BSUM framework and avoids zero-locking.
+    epsilon: float
+        if legacy is False, factors satisfy H > epsilon, W > epsilon instead of elementwise nonnegativity.
 
     Returns
     -------
@@ -62,19 +69,33 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter):
     
     for k in range(NbIter):
         
-        # FIXED W ESTIMATE H       
-        H = (H*(W.T.dot(V)))/ (W.T.dot(WH))
-        WH = W.dot(H)
+        # FIXED W ESTIMATE H      
+        WtW = W.T@W
+        WtV = W.T@V
+        for j in range(NbIter_inner): 
+            if legacy:
+                H = (H*WtV)/ (WtW@H)
+            else:
+                H = np.maximum((H*WtV)/ (WtW@H), epsilon)
         
         # FIXED H ESTIMATE W
-        W = (W*(V.dot(H.T)))/ (WH.dot(H.T))
-        
+        VHt = V@H.T
+        HHt = H@H.T
+        for j in range(NbIter_inner):
+            if legacy:
+                W = (W*VHt)/ (W@HHt)
+            else: 
+                W = np.maximum((W*VHt)/ (W@HHt), epsilon)
+
         WH = W.dot(H)
         # compute the error
         error.append(la.norm(Vorig- WH)/error_norm)
         # check if the err is small enough to stop 
         if (error[k] < 1e-7):
-             
+            if not legacy:
+                # Putting zeroes where we thresholded with epsilon
+                W[W==epsilon]=0 
+                H[H==epsilon]=0
             return error, W, H
 
     return error, W, H
@@ -475,15 +496,15 @@ if __name__ == '__main__':
         V = Vorig + N
         
         
+        NbIter_inner= 10
         
         time_start0 = time.time()
-        error0, W0, H0 = NMF_Lee_Seung(Vorig, V,  Wini, Hini, NbIter)
+        error0, W0, H0 = NMF_Lee_Seung(Vorig, V,  Wini, Hini, NbIter, NbIter_inner)
         time0 = time.time() - time_start0
         Error0[s] = error0[-1] 
         NbIterStop0[s] = len(error0)
         
       
-        NbIter_inner= 10
         
         time_start1 = time.time()
         error1, W1, H1  = NeNMF_optimMajo(Vorig, V, Wini, Hini)#NMF_proposed_Frobenius(Vorig, V, Wini, Hini, NbIter, NbIter_inner)
