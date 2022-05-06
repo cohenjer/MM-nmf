@@ -17,7 +17,7 @@ import time
 #------------------------------------
 # PMF algorithm version Lee and Seung
 
-def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8):
+def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, tol=1e-7):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -47,6 +47,8 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1
         If False, uses max( update, epsilon ) which ensures convergence with the BSUM framework and avoids zero-locking.
     epsilon: float
         if legacy is False, factors satisfy H > epsilon, W > epsilon instead of elementwise nonnegativity.
+    tol: float
+        stopping criterion, algorithm stops if error<tol.
 
     Returns
     -------
@@ -91,7 +93,7 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1
         # compute the error
         error.append(la.norm(Vorig- WH)/error_norm)
         # check if the err is small enough to stop 
-        if (error[k] < 1e-7):
+        if (error[-1] < tol):
             if not legacy:
                 # Putting zeroes where we thresholded with epsilon
                 W[W==epsilon]=0 
@@ -103,7 +105,7 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1
 #------------------------------------
 #  NMF algorithm proposed version
  
-def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner):
+def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -123,6 +125,8 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner):
         the maximum number of iterations.
     NbIter_inner: int
         number of inner loops
+    tol: float
+        stopping criterion, algorithm stops if error<tol.
     
     Returns
     -------
@@ -131,7 +135,7 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner):
     H : RxN array
         non-negative estimated matrix.
     W : MxR array
-        non-negative esimated matrix.
+        non-negative estimated matrix.
 
     """
     
@@ -148,7 +152,6 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner):
         B1 = W.T.dot(V)
         for ih in range(NbIter_inner):
             aux_H = auxiliary(Hess1, B1, H)   
-            #H =  np.maximum(H + gamma*aux_H*(B1 - Hess1(H)),0)
             H =  np.maximum(H + gamma*aux_H*(B1 - Hess1(H)),0)
             # ii = np.all((H>=0))
             # if ~ii:
@@ -167,7 +170,7 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner):
         
         error.append(la.norm(Vorig- W.dot(H))/error_norm)
         # Check if the error is smalle enough to stop the algorithm 
-        if (error[k] <1e-7):            
+        if (error[-1] <tol):            
             print('algo stop at iteration =  '+str(k))
             return error, W, H
             
@@ -217,7 +220,7 @@ def auxiliary(Hess, B, X):
 
 ################## Gradient descent method
 
-def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner):
+def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7):
     
     """"
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -237,6 +240,8 @@ def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner):
         the maximum number of iterations.
     NbIter_inner: int
         number of inner loops
+    tol: float
+        stopping criterion, algorithm stops if error<tol.
     
     Returns
     -------
@@ -278,8 +283,8 @@ def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner):
         # compute the error 
         error.append(la.norm(Vorig- W.dot(H))/error_norm)
         
-        # Check if the error is smalle enough to stop the algorithm 
-        if (error[k] <1e-7):
+        # Check if the error is small enough to stop the algorithm 
+        if (error[-1] <tol):
         
             return error, W, H#, (k+inner_iter_total)
             
@@ -338,14 +343,14 @@ def OGM_W(V,W,H, Ah, L, nb_inner):
             
         
          
-def NeNMF(Vorig, V, W0, H0, eps=1e-7, nb_inner=10):
+def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(Vorig.shape)
     error = [la.norm(Vorig- W.dot(H))/error_norm]
     #inner_iter_total = 0
     test   = 1 # 
-    while (test> eps): 
+    while (test> tol): 
         Aw = W.T.dot(W)
         Lw = 1/la.norm(Aw,2)
         H     = OGM_H(V, W, H, Aw, Lw, nb_inner)
@@ -363,14 +368,14 @@ def NeNMF(Vorig, V, W0, H0, eps=1e-7, nb_inner=10):
     return error, W, H#, inner_iter_total
 
 
-def NeNMF_optimMajo(Vorig, V, W0, H0, eps=1e-7, nb_inner=10):
+def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(Vorig.shape)
     error = [la.norm(Vorig- W.dot(H))/error_norm]
     #inner_iter_total = 0
     test   = 1 # 
-    while (test> eps): 
+    while (test> tol): 
         
         #----fixed w estimate H
         
@@ -496,7 +501,7 @@ if __name__ == '__main__':
         V = Vorig + N
         
         
-        NbIter_inner= 10
+        NbIter_inner= 20
         
         time_start0 = time.time()
         error0, W0, H0 = NMF_Lee_Seung(Vorig, V,  Wini, Hini, NbIter, NbIter_inner)
