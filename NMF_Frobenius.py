@@ -165,8 +165,6 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, ep
             aux_W =  auxiliary(Hess2, B2, W) 
             W = np.maximum(W + gamma*aux_W*(B2 - Hess2(W)), epsilon)
                
-        print('toto') 
-        
         error.append(la.norm(Vorig- W.dot(H))/error_norm)
         # Check if the error is smalle enough to stop the algorithm 
         if (error[-1] <tol):            
@@ -342,7 +340,7 @@ def OGM_W(V,W,H, Ah, L, nb_inner):
             
         
          
-def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
+def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(Vorig.shape)
@@ -350,7 +348,9 @@ def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
-    while (error[-1]> tol): 
+    iter = 1
+    while (error[-1]> tol) and (iter<itermax): 
+
         Aw = W.T.dot(W)
         Lw = 1/la.norm(Aw,2)
         H     = OGM_H(V, W, H, Aw, Lw, nb_inner)
@@ -364,12 +364,13 @@ def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
         #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER
         #error.append(la.norm(Vorig- WH)/error_norm)
         error.append(la.norm(Vorig- W@H)/error_norm)
+        iter+=1
         
     
     return error, W, H#, inner_iter_total
 
 
-def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
+def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(Vorig.shape)
@@ -377,7 +378,8 @@ def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
-    while error[-1]>tol:
+    iter = 0
+    while error[-1]>tol and iter < itermax:
         
         #----fixed w estimate H
         
@@ -406,7 +408,7 @@ def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10):
         # 21 p.2885 -> A RETRAVAILLER
         #error.append(la.norm(Vorig- WH)/error_norm)
         error.append(la.norm(Vorig- W@H)/error_norm)
-        
+        iter += 1
     
     return error, W, H#, inner_iter_total
 
@@ -505,10 +507,11 @@ if __name__ == '__main__':
         V = Vorig + N
         
         
-        NbIter_inner= 20
+        NbIter_inner= 50
+        tol = 1e-8
         
         time_start0 = time.time()
-        error0, W0, H0 = NMF_Lee_Seung(Vorig, V,  Wini, Hini, NbIter, NbIter_inner)
+        error0, W0, H0 = NMF_Lee_Seung(Vorig, V,  Wini, Hini, NbIter, NbIter_inner,tol=tol)
         time0 = time.time() - time_start0
         Error0[s] = error0[-1] 
         NbIterStop0[s] = len(error0)
@@ -516,7 +519,8 @@ if __name__ == '__main__':
       
         
         time_start1 = time.time()
-        error1, W1, H1  = NeNMF_optimMajo(Vorig, V, Wini, Hini)#NMF_proposed_Frobenius(Vorig, V, Wini, Hini, NbIter, NbIter_inner)
+        error1, W1, H1  = NeNMF_optimMajo(Vorig, V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner)
+        #error1, W1, H1 = NMF_proposed_Frobenius(Vorig, V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
         time1 = time.time() - time_start1
         Error1[s] = error1[-1] 
         NbIterStop1[s] = len(error1)
@@ -525,14 +529,14 @@ if __name__ == '__main__':
         
          
         time_start2 = time.time()
-        error2, W2, H2  = Grad_descent(Vorig, V , Wini, Hini, NbIter, NbIter_inner)
+        error2, W2, H2  = Grad_descent(Vorig, V , Wini, Hini, NbIter, NbIter_inner, tol=tol)
         time2 = time.time() - time_start1
         Error2[s] = error2[-1] 
         NbIterStop2[s] = len(error2)
         
         
         time_start3 = time.time()
-        error3, W3, H3  = NeNMF(Vorig, V, Wini, Hini, 1e-7, 10)
+        error3, W3, H3  = NeNMF(Vorig, V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter)
         time3 = time.time() - time_start3
         Error3[s] = error3[-1]
         NbIterStop3[s] = len(error3)
