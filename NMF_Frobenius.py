@@ -217,7 +217,7 @@ def auxiliary(Hess, B, X):
 
 ################## Gradient descent method
 
-def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7):
+def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
     
     """"
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -258,7 +258,7 @@ def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7):
     error_norm = np.prod(Vorig.shape)
     error = [la.norm(Vorig- W.dot(H))/error_norm]
      
-    inner_iter_total = 0 
+    #inner_iter_total = 0 
     
     for k in range(NbIter):
         # FIXED W ESTIMATE H
@@ -266,16 +266,16 @@ def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7):
         normAw = la.norm(Aw,2)
         WtV = W.T.dot(V)
         for ih in range(NbIter_inner):          
-            H =  np.maximum(H + (1.9/normAw)*(WtV - Aw.dot(H)),1e-7)
-        inner_iter_total +=NbIter_inner
+            H =  np.maximum(H + (1.9/normAw)*(WtV - Aw.dot(H)),epsilon)
+        #inner_iter_total +=NbIter_inner
           
         # FIXED H ESTIMATE W
         Ah = H.dot(H.T)
         normAh = la.norm(Ah,2)
         VHt = V.dot(H.T)
         for iw in range(NbIter_inner):       
-            W = np.maximum(W + (1.9/normAh)*(VHt - W.dot(Ah)),1e-7)
-        inner_iter_total +=NbIter_inner
+            W = np.maximum(W + (1.9/normAh)*(VHt - W.dot(Ah)),epsilon)
+        #inner_iter_total +=NbIter_inner
         
         # compute the error 
         error.append(la.norm(Vorig- W.dot(H))/error_norm)
@@ -300,7 +300,7 @@ def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7):
 
  
 
-def OGM_H(V,W,H, Aw, L, nb_inner):
+def OGM_H(V,W,H, Aw, L, nb_inner, epsilon):
         # V≈WH, W≥O, H≥0
         # updates H        
         
@@ -313,14 +313,14 @@ def OGM_H(V,W,H, Aw, L, nb_inner):
         for ih in range(nb_inner):
             H_ = H.copy()
             alpha_ = alpha 
-            H = np.maximum(Y+L*(WtV - Aw.dot(Y)),0) # projection entrywise on R+ of gradient step
+            H = np.maximum(Y+L*(WtV - Aw.dot(Y)),epsilon) # projection entrywise on R+ of gradient step
             alpha = (1+np.sqrt(4*alpha**2+1))/2  # Nesterov momentum parameter           
             Y = H + ((alpha-1)/alpha_)*(H-H_)
             
         
         return H
 
-def OGM_W(V,W,H, Ah, L, nb_inner):
+def OGM_W(V,W,H, Ah, L, nb_inner,epsilon):
         # V≈WH, W≥O, H≥0
         # updates W
         # eps: threshold for stopping criterion
@@ -333,14 +333,14 @@ def OGM_W(V,W,H, Ah, L, nb_inner):
         for iw in range(nb_inner):
             W_ = W.copy()
             alpha_ = alpha 
-            W = np.maximum(Y + L*(VHt - Y.dot(Ah)),0)
+            W = np.maximum(Y + L*(VHt - Y.dot(Ah)),epsilon)
             alpha = (1+np.sqrt(4*alpha**2+1))/2  # Nesterov momentum parameter           
             Y = W + ((alpha-1)/alpha_)*(W-W_)
         return W
             
         
          
-def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000):
+def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(Vorig.shape)
@@ -353,11 +353,11 @@ def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000):
 
         Aw = W.T.dot(W)
         Lw = 1/la.norm(Aw,2)
-        H     = OGM_H(V, W, H, Aw, Lw, nb_inner)
+        H     = OGM_H(V, W, H, Aw, Lw, nb_inner,epsilon)
         
         Ah = H.dot(H.T)
         Lh = 1/la.norm(Ah,2)
-        W     = OGM_W(V, W, H, Ah, Lh, nb_inner)
+        W     = OGM_W(V, W, H, Ah, Lh, nb_inner,epsilon)
         #inner_iter_total = inner_iter_total+20
         #WH = W.dot(H)
         #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
@@ -370,7 +370,7 @@ def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000):
     return error, W, H#, inner_iter_total
 
 
-def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000):
+def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1e-8):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(Vorig.shape)
@@ -391,7 +391,7 @@ def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000):
         Lw = sqrtB1/(A1.dot(sqrtB1)+1e-10)
         
         #Lw = 1/la.norm(Aw,2)
-        H     = OGM_H(V, W, H, A1, Lw, nb_inner)
+        H     = OGM_H(V, W, H, A1, Lw, nb_inner,epsilon)
         
         # fixed h estimate w
         
@@ -400,7 +400,7 @@ def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000):
         # Independent of X, computation time could be saved
               
         Lh = sqrtB2/(sqrtB2.dot(A2)+1e-10)        
-        W = OGM_W(V, W, H, A2, Lh, nb_inner)
+        W = OGM_W(V, W, H, A2, Lh, nb_inner, epsilon)
         #inner_iter_total = inner_iter_total+20
         #WH = W.dot(H)
         #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
@@ -507,7 +507,7 @@ if __name__ == '__main__':
         V = Vorig + N
         
         
-        NbIter_inner= 50
+        NbIter_inner= 20
         tol = 1e-8
         
         time_start0 = time.time()
