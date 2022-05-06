@@ -14,6 +14,15 @@ import time
 #import tensorly as tl
 
 
+# -----------------------------------
+# Computing error efficiently
+def compute_error(Vnorm_sq,W,HHt,VHt,error_norm):
+    """
+    This function computes \|V - WH \|_F /n/m with n,m the sizes of V. It does so without explicitely computing the norm but rather reusing previously computed cross products HHt and VHt. Vnorm_sq is the squared Frobenius norm of V.
+    """
+    return np.sqrt(Vnorm_sq - 2*np.sum(VHt*W) +  np.sum(HHt*(W.T@W)))/error_norm
+
+
 #------------------------------------
 # PMF algorithm version Lee and Seung
 
@@ -64,6 +73,7 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
     H = H0.copy()
     error_norm = np.prod(V.shape)
     error = [la.norm(V- W@H)/error_norm]
+    Vnorm_sq = np.linalg.norm(V)**2
      
     
     for k in range(NbIter):
@@ -87,7 +97,8 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
                 W = np.maximum((W*VHt)/ (W@HHt), epsilon)
 
         # compute the error
-        error.append(la.norm(V- W@H)/error_norm)
+        err = compute_error(Vnorm_sq,W,HHt,VHt,error_norm)
+        error.append(err)
         # check if the err is small enough to stop 
         if (error[-1] < tol):
             #if not legacy:
@@ -138,6 +149,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
     gamma = 1.9
     error_norm = np.prod(V.shape)
     error = [la.norm(V-W.dot(H))/error_norm]
+    Vnorm_sq = np.linalg.norm(V)**2
     for k in range(NbIter):
         
         # FIXED W ESTIMATE H
@@ -160,7 +172,8 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
             aux_W =  auxiliary(Hess2, B2, W) 
             W = np.maximum(W + gamma*aux_W*(B2 - Hess2(W)), epsilon)
                
-        error.append(la.norm(V- W.dot(H))/error_norm)
+        err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
+        error.append(err)
         # Check if the error is smalle enough to stop the algorithm 
         if (error[-1] <tol):            
             print('algo stop at iteration =  '+str(k))
@@ -250,6 +263,7 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
     H = H0.copy()
     error_norm = np.prod(V.shape)
     error = [la.norm(V- W.dot(H))/error_norm]
+    Vnorm_sq = np.linalg.norm(V)**2
      
     #inner_iter_total = 0 
     
@@ -259,7 +273,7 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
         normAw = la.norm(Aw,2)
         WtV = W.T.dot(V)
         for ih in range(NbIter_inner):          
-            H =  np.maximum(H + (1.9/normAw)*(WtV - Aw.dot(H)),epsilon)
+            H =  np.maximum(H + (1.9/normAw)*(WtV - Aw@H),epsilon)
         #inner_iter_total +=NbIter_inner
           
         # FIXED H ESTIMATE W
@@ -267,11 +281,12 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
         normAh = la.norm(Ah,2)
         VHt = V.dot(H.T)
         for iw in range(NbIter_inner):       
-            W = np.maximum(W + (1.9/normAh)*(VHt - W.dot(Ah)),epsilon)
+            W = np.maximum(W + (1.9/normAh)*(VHt - W@Ah),epsilon)
         #inner_iter_total +=NbIter_inner
         
         # compute the error 
-        error.append(la.norm(V- W.dot(H))/error_norm)
+        err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
+        error.append(err)
         
         # Check if the error is small enough to stop the algorithm 
         if (error[-1] <tol):
@@ -293,7 +308,7 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
 
  
 
-def OGM_H(V,W,H, Aw, L, nb_inner, epsilon):
+def OGM_H(WtV, H, Aw, L, nb_inner, epsilon):
         # V≈WH, W≥O, H≥0
         # updates H        
         
@@ -301,7 +316,6 @@ def OGM_H(V,W,H, Aw, L, nb_inner, epsilon):
         alpha     = 1
         #Aw = W.T.dot(W)
         #L = la.norm(Aw,2)
-        WtV = W.T.dot(V)
          
         for ih in range(nb_inner):
             H_ = H.copy()
@@ -313,14 +327,13 @@ def OGM_H(V,W,H, Aw, L, nb_inner, epsilon):
         
         return H
 
-def OGM_W(V,W,H, Ah, L, nb_inner,epsilon):
+def OGM_W(VHt,W, Ah, L, nb_inner,epsilon):
         # V≈WH, W≥O, H≥0
         # updates W
         # eps: threshold for stopping criterion
         
         #Ah = H.dot(H.T)
         #L = la.norm(Ah,2)
-        VHt = V.dot(H.T)
         alpha = 1
         Y = W.copy()
         for iw in range(nb_inner):
@@ -338,6 +351,7 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
     H = H0.copy()
     error_norm = np.prod(V.shape)
     error = [la.norm(V- W.dot(H))/error_norm]
+    Vnorm_sq = np.linalg.norm(V)**2
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
@@ -346,16 +360,19 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
 
         Aw = W.T.dot(W)
         Lw = 1/la.norm(Aw,2)
-        H     = OGM_H(V, W, H, Aw, Lw, nb_inner,epsilon)
+        WtV = W.T@V
+        H     = OGM_H(WtV, H, Aw, Lw, nb_inner,epsilon)
         
         Ah = H.dot(H.T)
         Lh = 1/la.norm(Ah,2)
-        W     = OGM_W(V, W, H, Ah, Lh, nb_inner,epsilon)
+        VHt = V@H.T
+        W     = OGM_W(VHt, W, Ah, Lh, nb_inner,epsilon)
         #inner_iter_total = inner_iter_total+20
         #WH = W.dot(H)
         #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
         #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER
-        error.append(la.norm(V- W@H)/error_norm)
+        err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
+        error.append(err)
         iter+=1
         
     
@@ -367,6 +384,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
     H = H0.copy()
     error_norm = np.prod(V.shape)
     error = [la.norm(V- W.dot(H))/error_norm]
+    Vnorm_sq = np.linalg.norm(V)**2
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
@@ -376,6 +394,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         #----fixed w estimate H
         
         A1 = W.T.dot(W)
+        B1 = W.T@V
         sqrtB1 =np.sqrt(W.T.dot(V))
         # find the zero entries of B
         # Independent of X, computation time could be saved
@@ -383,23 +402,24 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         Lw = sqrtB1/(A1.dot(sqrtB1)+1e-10)
         
         #Lw = 1/la.norm(Aw,2)
-        H     = OGM_H(V, W, H, A1, Lw, nb_inner,epsilon)
+        H     = OGM_H(B1, H, A1, Lw, nb_inner,epsilon)
         
         # fixed h estimate w
         
         A2 = H.dot(H.T)
+        B2 = V@H.T
         sqrtB2 = np.sqrt(V.dot(H.T))
         # Independent of X, computation time could be saved
               
         Lh = sqrtB2/(sqrtB2.dot(A2)+1e-10)        
-        W = OGM_W(V, W, H, A2, Lh, nb_inner, epsilon)
+        W = OGM_W(B2, W, A2, Lh, nb_inner, epsilon)
         #inner_iter_total = inner_iter_total+20
         #WH = W.dot(H)
         #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
         #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 
         # 21 p.2885 -> A RETRAVAILLER
-        #error.append(la.norm(V- WH)/error_norm)
-        error.append(la.norm(V- W@H)/error_norm)
+        err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
+        error.append(err)
         iter += 1
     
     return error, W, H#, inner_iter_total
