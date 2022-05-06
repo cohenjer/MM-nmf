@@ -64,7 +64,7 @@ for  s in range(NbSeed): #[NbSeed-1]:#
     
     
     time_start0 = time.time()
-    error0, W0, H0 = nmf_f.NMF_Lee_Seung(Vorig, V,  Wini, Hini, NbIter, NbIter_inner,tol=tol)
+    error0, W0, H0 = nmf_f.NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol)
     time0 = time.time() - time_start0
     Error0[s] = error0[-1] 
     NbIterStop0[s] = len(error0)
@@ -72,21 +72,21 @@ for  s in range(NbSeed): #[NbSeed-1]:#
     
     
     time_start1 = time.time()
-    error1, W1, H1  = nmf_f.NeNMF_optimMajo(Vorig, V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner)
-    #error1, W1, H1 = NMF_proposed_Frobenius(Vorig, V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
+    error1, W1, H1  = nmf_f.NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner)
+    #error1, W1, H1 = NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
     time1 = time.time() - time_start1
     Error1[s] = error1[-1] 
     NbIterStop1[s] = len(error1)
         
     time_start2 = time.time()
-    error2, W2, H2  = nmf_f.Grad_descent(Vorig, V , Wini, Hini, NbIter, NbIter_inner, tol=tol)
+    error2, W2, H2  = nmf_f.Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol)
     time2 = time.time() - time_start1
     Error2[s] = error2[-1] 
     NbIterStop2[s] = len(error2)
     
     
     time_start3 = time.time()
-    error3, W3, H3  = nmf_f.NeNMF(Vorig, V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter)
+    error3, W3, H3  = nmf_f.NeNMF(V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter)
     time3 = time.time() - time_start3
     Error3[s] = error3[-1]
     NbIterStop3[s] = len(error3)

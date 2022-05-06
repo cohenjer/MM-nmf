@@ -17,7 +17,7 @@ import time
 #------------------------------------
 # PMF algorithm version Lee and Seung
 
-def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, tol=1e-7):
+def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, tol=1e-7):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -30,8 +30,6 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1
     
     Parameters
     ----------
-    Vorig : MxN array 
-        matrix with all entries are non-negative Vorig = W*H
     V : MxN array 
         observation matrix that is Vorig + B where B represents to the noise.
     W0 : MxR array
@@ -64,9 +62,8 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1
     
     W = W0.copy()
     H = H0.copy()
-    error_norm = np.prod(Vorig.shape)
-    WH = W.dot(H)
-    error = [la.norm(Vorig- WH)/error_norm]
+    error_norm = np.prod(V.shape)
+    error = [la.norm(V- W@H)/error_norm]
      
     
     for k in range(NbIter):
@@ -90,7 +87,7 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1
                 W = np.maximum((W*VHt)/ (W@HHt), epsilon)
 
         # compute the error
-        error.append(la.norm(Vorig- W@H)/error_norm)
+        error.append(la.norm(V- W@H)/error_norm)
         # check if the err is small enough to stop 
         if (error[-1] < tol):
             #if not legacy:
@@ -104,7 +101,7 @@ def NMF_Lee_Seung(Vorig, V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1
 #------------------------------------
 #  NMF algorithm proposed version
  
-def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
+def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -112,8 +109,6 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, ep
     
     Parameters
     ----------
-    Vorig : MxN array 
-        matrix with all entries are non-negative Vorig = W*H
     V : MxN array 
         observation matrix that is Vorig + B where B represents to the noise.
     W0 : MxR array
@@ -141,8 +136,8 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, ep
     W = W0.copy()
     H = H0.copy()
     gamma = 1.9
-    error_norm = np.prod(Vorig.shape)
-    error = [la.norm(Vorig-W.dot(H))/error_norm]
+    error_norm = np.prod(V.shape)
+    error = [la.norm(V-W.dot(H))/error_norm]
     for k in range(NbIter):
         
         # FIXED W ESTIMATE H
@@ -165,7 +160,7 @@ def NMF_proposed_Frobenius(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, ep
             aux_W =  auxiliary(Hess2, B2, W) 
             W = np.maximum(W + gamma*aux_W*(B2 - Hess2(W)), epsilon)
                
-        error.append(la.norm(Vorig- W.dot(H))/error_norm)
+        error.append(la.norm(V- W.dot(H))/error_norm)
         # Check if the error is smalle enough to stop the algorithm 
         if (error[-1] <tol):            
             print('algo stop at iteration =  '+str(k))
@@ -217,7 +212,7 @@ def auxiliary(Hess, B, X):
 
 ################## Gradient descent method
 
-def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
+def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
     
     """"
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -225,8 +220,6 @@ def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8
     
     Parameters
     ----------
-    Vorig : MxN array 
-        matrix with all entries are non-negative Vorig = W*H
     V : MxN array 
         observation matrix that is Vorig + B where B represents to the noise.
     W0 : MxR array
@@ -255,8 +248,8 @@ def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8
     
     W = W0.copy()
     H = H0.copy()
-    error_norm = np.prod(Vorig.shape)
-    error = [la.norm(Vorig- W.dot(H))/error_norm]
+    error_norm = np.prod(V.shape)
+    error = [la.norm(V- W.dot(H))/error_norm]
      
     #inner_iter_total = 0 
     
@@ -278,7 +271,7 @@ def Grad_descent(Vorig, V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8
         #inner_iter_total +=NbIter_inner
         
         # compute the error 
-        error.append(la.norm(Vorig- W.dot(H))/error_norm)
+        error.append(la.norm(V- W.dot(H))/error_norm)
         
         # Check if the error is small enough to stop the algorithm 
         if (error[-1] <tol):
@@ -340,11 +333,11 @@ def OGM_W(V,W,H, Ah, L, nb_inner,epsilon):
             
         
          
-def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
+def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
     W = W0.copy()
     H = H0.copy()
-    error_norm = np.prod(Vorig.shape)
-    error = [la.norm(Vorig- W.dot(H))/error_norm]
+    error_norm = np.prod(V.shape)
+    error = [la.norm(V- W.dot(H))/error_norm]
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
@@ -362,19 +355,18 @@ def NeNMF(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
         #WH = W.dot(H)
         #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
         #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER
-        #error.append(la.norm(Vorig- WH)/error_norm)
-        error.append(la.norm(Vorig- W@H)/error_norm)
+        error.append(la.norm(V- W@H)/error_norm)
         iter+=1
         
     
     return error, W, H#, inner_iter_total
 
 
-def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1e-8):
+def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1e-8):
     W = W0.copy()
     H = H0.copy()
-    error_norm = np.prod(Vorig.shape)
-    error = [la.norm(Vorig- W.dot(H))/error_norm]
+    error_norm = np.prod(V.shape)
+    error = [la.norm(V- W.dot(H))/error_norm]
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
@@ -406,8 +398,8 @@ def NeNMF_optimMajo(Vorig, V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, ep
         #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
         #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 
         # 21 p.2885 -> A RETRAVAILLER
-        #error.append(la.norm(Vorig- WH)/error_norm)
-        error.append(la.norm(Vorig- W@H)/error_norm)
+        #error.append(la.norm(V- WH)/error_norm)
+        error.append(la.norm(V- W@H)/error_norm)
         iter += 1
     
     return error, W, H#, inner_iter_total
@@ -511,7 +503,7 @@ if __name__ == '__main__':
         tol = 1e-8
         
         time_start0 = time.time()
-        error0, W0, H0 = NMF_Lee_Seung(Vorig, V,  Wini, Hini, NbIter, NbIter_inner,tol=tol)
+        error0, W0, H0 = NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol)
         time0 = time.time() - time_start0
         Error0[s] = error0[-1] 
         NbIterStop0[s] = len(error0)
@@ -519,8 +511,8 @@ if __name__ == '__main__':
       
         
         time_start1 = time.time()
-        error1, W1, H1  = NeNMF_optimMajo(Vorig, V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner)
-        #error1, W1, H1 = NMF_proposed_Frobenius(Vorig, V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
+        error1, W1, H1  = NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner)
+        #error1, W1, H1 = NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
         time1 = time.time() - time_start1
         Error1[s] = error1[-1] 
         NbIterStop1[s] = len(error1)
@@ -529,14 +521,14 @@ if __name__ == '__main__':
         
          
         time_start2 = time.time()
-        error2, W2, H2  = Grad_descent(Vorig, V , Wini, Hini, NbIter, NbIter_inner, tol=tol)
+        error2, W2, H2  = Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol)
         time2 = time.time() - time_start1
         Error2[s] = error2[-1] 
         NbIterStop2[s] = len(error2)
         
         
         time_start3 = time.time()
-        error3, W3, H3  = NeNMF(Vorig, V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter)
+        error3, W3, H3  = NeNMF(V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter)
         time3 = time.time() - time_start3
         Error3[s] = error3[-1]
         NbIterStop3[s] = len(error3)
