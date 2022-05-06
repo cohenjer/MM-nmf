@@ -341,7 +341,7 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
-    iter = 1
+    iter = 0
     while (error[-1]> tol) and (iter<itermax): 
 
         Aw = W.T.dot(W)
