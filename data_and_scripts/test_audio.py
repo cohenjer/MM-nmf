@@ -59,7 +59,7 @@ H_nnls = fista(W0.T@Y, W0.T@W0, tol=1e-16, n_iter_max=1000)
 rank = 88
 beta = 2 # beta=1 data is big :(
 
-out = nmf_hals(Y, rank, init='custom', U_0 = W0, V_0 = H_nnls, return_costs=True, n_iter_max=1000, tol=1e-16, beta=beta, update_rule='hals')
+out = nmf_hals(Y, rank, init='custom', U_0 = W0, V_0 = H_nnls, return_costs=True, n_iter_max=1000, tol=1e-16)#, beta=beta, update_rule='hals')
 
 #-----------------------------------------------------------------
 # Results post-processing

@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import hadamard
 import matplotlib.pyplot as plt
+from AO_FISTA import ao_fg
 
 '''
  The following example build an Hadamard matrix A, which is used to measure an image x which is sparse (bitmap image). The observations are
@@ -35,8 +36,9 @@ import matplotlib.pyplot as plt
 
 # (NMF suggestions)
 posA = True
-m = 10
+m = 10 #choose
 n = 2**m
+l = 5000 #choose
 p = -1008#-999 # X images are then 4x4 # 5x5
 if p<0:
     n_col = 2**m+p
@@ -47,7 +49,6 @@ if p<0:
 else:
     n_col = n
     n_row = 2**m-p
-l = 5000
 sqrt_n_col = int(np.sqrt(n_col))
 
 # sensing operator is Hadamard
@@ -112,7 +113,15 @@ from nn_fac.nmf import nmf as nmf_hals
 from scipy.optimize import linear_sum_assignment as munkres
 
 # NMF with HALS (beta=2)
-W, H, err_nmf,_ = nmf_hals(Y, n_col, return_costs=True)
+plt.figure()
+W, H, err_nmf, time_nmf = nmf_hals(Y, n_col, return_costs=True)
+plt.semilogy(err_nmf) #todo scale
+out, err_nmf, time_nmf = ao_fg(Y, n_col, verbose=True, tol_inner=1e-4, n_iter_max = 1000, tol=1e-8, inner_iter_max=10)
+plt.semilogy(err_nmf)
+plt.show()
+W = out[0]
+H = out[1].T
+
 # postprocessing
 # Permutation ambiguityH_bit = H_bit / np.sum(H_bit,axis=0) # scale before conversion
 Ht = H.T
