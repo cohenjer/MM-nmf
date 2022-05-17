@@ -22,11 +22,11 @@ n = 30
 r = 5 #30
 
 # Max number of iterations
-NbIter = 1000
-NbIter_hals = 200 
+NbIter = 3000
+NbIter_hals = 900 
 # Fixed number of inner iterations
 #NbIter_inner= 20
-NbIter_inner_list = [1,2,5,10,20,50,100]
+NbIter_inner_list = [1,2,5,10,20,30]
 # Stopping criterion error<tol
 tol = 0 #running all 5k iterations
 
@@ -49,7 +49,8 @@ NbIterStop3 = np.zeros(NbSeed)
 NbIterStop4 = np.zeros(NbSeed)
 
 for NbIter_inner in  NbIter_inner_list:
-    # One noise, several inits; NMF is not unique and nncvx so we will find several results
+    print(NbIter_inner)
+    # One noise, one init; NMF is not unique and nncvx so we will find several results
     for s in range(NbSeed): #[NbSeed-1]:#
 
         # friendly print
@@ -178,20 +179,34 @@ plt.ylabel('Number of faster runs')
 # Plots with all runs
 
 # Plotting a few curves for all methods
+nb_run_show=5
+
 df2 = pd.DataFrame()
 for idx_pd,i in enumerate(df["full_error"]):
-    its = np.linspace(0,len(i)-1,len(i))
-    df2=pd.concat([df2, pd.DataFrame({
-        "it":its,
-        "time": df.iloc[idx_pd]["full_time"],
-        "rec_err":i,
-        "method":df.iloc[idx_pd]["method"],
-        "run":df.iloc[idx_pd]["seed_idx"],
-    })], ignore_index=True)
+    if df.iloc[idx_pd]["seed_idx"]<nb_run_show:
+        its = np.linspace(0,len(i)-1,len(i))
+        df2=pd.concat([df2, pd.DataFrame({
+            "it":its,
+            "time": df.iloc[idx_pd]["full_time"],
+            "rec_err":i,
+            "method":df.iloc[idx_pd]["method"],
+            "run":df.iloc[idx_pd]["seed_idx"],
+            "inner": df.iloc[idx_pd]["NbIter_inner"]
+        })], ignore_index=True)
 
-nb_run_show=9
-pxfig = px.line(df2[df2["run"]<nb_run_show], x="time", y= "rec_err",color='method',facet_col="run",facet_col_wrap=3,
+# cutting time for more regular plots
+maxtime = 0.5
+
+df2 = df2[df2["time"]<maxtime]
+
+pxfig = px.line(df2, x="time", y= "rec_err",color='method',facet_col="run",facet_row="inner",
               log_y=True,
               height=1000)
 pxfig.update_layout(font = dict(size = 20))
+pxfig2 = px.line(df2, x="it", y= "rec_err",color='method',facet_col="run",facet_row="inner",
+              log_y=True,
+              height=1000)
+pxfig2.update_layout(font = dict(size = 20))
+
 pxfig.show()
+pxfig2.show()
