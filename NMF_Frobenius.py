@@ -20,7 +20,7 @@ def compute_error(Vnorm_sq,W,HHt,VHt,error_norm):
     """
     This function computes \|V - WH \|_F /n/m with n,m the sizes of V. It does so without explicitely computing the norm but rather reusing previously computed cross products HHt and VHt. Vnorm_sq is the squared Frobenius norm of V.
     """
-    return np.sqrt(Vnorm_sq - 2*np.sum(VHt*W) +  np.sum(HHt*(W.T@W)))/error_norm
+    return np.sqrt(np.abs(Vnorm_sq - 2*np.sum(VHt*W) +  np.sum(HHt*(W.T@W))))/error_norm
 
 
 #------------------------------------
