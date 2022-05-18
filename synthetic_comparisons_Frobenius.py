@@ -16,25 +16,27 @@ plt.close('all')
 # Storing intermediate results
 df = pd.DataFrame()
 
+# --------------------- Choose parameters for grid tests ------------ #
 # dimensions
-m = 100
-n = 30
-r = 5 #30
+m_list = [20]
+n_list = [20]
+r_list = [2,5,10] #30
 
 # Max number of iterations
 NbIter = 3000
-NbIter_hals = 900 
+NbIter_hals = 1000 
 # Fixed number of inner iterations
-#NbIter_inner= 20
-NbIter_inner_list = [1,2,5,10,20,30]
+NbIter_inner_list = [10]
+#NbIter_inner_list = [1,2,5,10,20,30]
 # Stopping criterion error<tol
 tol = 0 #running all 5k iterations
 
-# noise variance
-sigma = 1e-5
+# noise variance TODO change to snr
+sigma_list = [0,1e-7]
 
 # Number of random inits
 NbSeed=10
+# -----------------------------------------------------------------------
 
 Error0 = np.zeros(NbSeed)
 Error1 = np.zeros(NbSeed)
@@ -48,79 +50,85 @@ NbIterStop2 = np.zeros(NbSeed)
 NbIterStop3 = np.zeros(NbSeed)
 NbIterStop4 = np.zeros(NbSeed)
 
-for NbIter_inner in  NbIter_inner_list:
-    print(NbIter_inner)
-    # One noise, one init; NMF is not unique and nncvx so we will find several results
-    for s in range(NbSeed): #[NbSeed-1]:#
+for s in range(NbSeed): #[NbSeed-1]:#
 
-        # friendly print
-        print(s)
-            
-        # Fixed the signal 
-        Worig = np.random.rand(m, r) 
-        Horig = np.random.rand(r, n)  
-        Vorig = Worig.dot(Horig)
+    # friendly print
+    print(s)
+        
+    for r in r_list:
+        for sigma in sigma_list:
+            for n in n_list:
+                for m in m_list:
 
-        # Initialization for H0 as a random matrix
-        Hini = np.random.rand(r, n)
-        Wini = np.random.rand(m, r) #sparse.random(rV, cW, density=0.25).toarray() 
-        
-        # adding noise to the observed data
-        np.random.seed(s)
-        N = sigma*np.random.rand(m,n)
-        V = Vorig + N
-        
-        
-        error0, W0, H0, toc0 = nmf_f.NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol)
-        #time0 = toc0[-1]
-        #Error0[s] = error0[-1] 
-        #NbIterStop0[s] = len(error0)
-        
-        
-        
-        error1, W1, H1, toc1  = nmf_f.NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner)
-        #error1, W1, H1, toc1 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
-        #time1 = toc1[-1] 
-        #Error1[s] = error1[-1] 
-        #NbIterStop1[s] = len(error1)
-            
-        error2, W2, H2, toc2  = nmf_f.Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol)
-        #time2 = toc2[-1]
-        #Error2[s] = error2[-1] 
-        #NbIterStop2[s] = len(error2)
-        
-        
-        error3, W3, H3, toc3  = nmf_f.NeNMF(V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter)
-        #time3 = toc3[-1]
-        #Error3[s] = error3[-1]
-        #NbIterStop3[s] = len(error3)
+                    # Fixed the signal 
+                    Worig = np.random.rand(m, r) 
+                    Horig = np.random.rand(r, n)  
+                    Vorig = Worig.dot(Horig)
 
-        # Fewer max iter cause too slow
-        W4, H4, error4, toc4 = nn_fac.nmf.nmf(V, r, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter_hals, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner)
-        #time4 = toc4[-1]
-        #Error4[s] = error4[-1]
-        #NbIterStop4[s] = len(error4)
+                    # Initialization for H0 as a random matrix
+                    Hini = np.random.rand(r, n)
+                    Wini = np.random.rand(m, r) #sparse.random(rV, cW, density=0.25).toarray() 
+                    
+                    # adding noise to the observed data
+                    np.random.seed(s)
+                    N = sigma*np.random.rand(m,n)
+                    V = Vorig + N
 
-        df = pd.concat([df,pd.DataFrame(
-            {
-                "batch_size": 5, # number of algorithms in each comparison run
-                "method": ["NMF_LeeSeung",  "NeNMF_optimMajorant", "PGD", "NeNMF", "HALS"],
-                "m": m,
-                "n": n,
-                "r": r,
-                "seed_idx": s,
-                "noise_variance": sigma,
-                "NbIter": NbIter,
-                "NbIter_inner": NbIter_inner,
-                "NbIter_hals": NbIter_hals,
-                "tol": tol,
-                "final_error": [error0[-1], error1[-1], error2[-1], error3[-1], error4[-1]],
-                "total_time": [toc0[-1], toc1[-1], toc2[-1], toc3[-1], toc4[-1]],
-                "full_error": [error0,error1,error2,error3,error4],
-                "full_time": [toc0,toc1,toc2,toc3,toc4],
-                "NbIterStop": [len(error0),len(error1),len(error2),len(error3),len(error4)]
-            }
-        )], ignore_index=True)
+                    for NbIter_inner in  NbIter_inner_list:
+                        # One noise, one init; NMF is not unique and nncvx so we will find several results
+                        error0, W0, H0, toc0 = nmf_f.NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol)
+                        error1, W1, H1, toc1  = nmf_f.NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner)
+                        #error1, W1, H1, toc1 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
+                        error2, W2, H2, toc2  = nmf_f.Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol)
+                        error3, W3, H3, toc3  = nmf_f.NeNMF(V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter)
+                        # Fewer max iter cause too slow
+                        W4, H4, error4, toc4 = nn_fac.nmf.nmf(V, r, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter_hals, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner)
+
+                        # post-processing: finding errors at time=t or iters=it
+                        time_stamps = [0.1, 0.5, 1]
+                        it_stamps = [10, 50, 300]
+                        if np.min([toc0[-1],toc1[-1],toc2[-1],toc3[-1],toc4[-1]])<time_stamps[-1]:
+                            print('Warning: time threshold is too large')
+                        idx_time_0 = [np.argmin(np.abs(np.add(toc0,-i))) for i in time_stamps]
+                        idx_time_1 = [np.argmin(np.abs(np.add(toc1,-i))) for i in time_stamps]
+                        idx_time_2 = [np.argmin(np.abs(np.add(toc2,-i))) for i in time_stamps]
+                        idx_time_3 = [np.argmin(np.abs(np.add(toc3,-i))) for i in time_stamps]
+                        idx_time_4 = [np.argmin(np.abs(np.add(toc4,-i))) for i in time_stamps]
+                        
+                        err_time_0 = [error0[i] for i in idx_time_0]
+                        err_time_1 = [error1[i] for i in idx_time_1]
+                        err_time_2 = [error2[i] for i in idx_time_2]
+                        err_time_3 = [error3[i] for i in idx_time_3]
+                        err_time_4 = [error4[i] for i in idx_time_4]
+
+                        err_it_0 = [error0[np.minimum(i,len(error0)-1)] for i in it_stamps]
+                        err_it_1 = [error1[np.minimum(i,len(error1)-1)] for i in it_stamps]
+                        err_it_2 = [error2[np.minimum(i,len(error2)-1)] for i in it_stamps]
+                        err_it_3 = [error3[np.minimum(i,len(error3)-1)] for i in it_stamps]
+                        err_it_4 = [error4[np.minimum(i,len(error4)-1)] for i in it_stamps]
+
+                        df = pd.concat([df,pd.DataFrame(
+                            {
+                                "batch_size": 5, # number of algorithms in each comparison run
+                                "method": ["NMF_LeeSeung",  "NeNMF_optimMajorant", "PGD", "NeNMF", "HALS"],
+                                "m": m,
+                                "n": n,
+                                "r": r,
+                                "seed_idx": s,
+                                "noise_variance": sigma,
+                                "NbIter": NbIter,
+                                "NbIter_inner": NbIter_inner,
+                                "NbIter_hals": NbIter_hals,
+                                "tol": tol,
+                                "error_at_time_thr": [err_time_0,err_time_1,err_time_2,err_time_3,err_time_4],
+                                "error_at_at_thr": [err_it_0,err_it_1,err_it_2,err_it_3,err_it_4],
+                                "final_error": [error0[-1], error1[-1], error2[-1], error3[-1], error4[-1]],
+                                "total_time": [toc0[-1], toc1[-1], toc2[-1], toc3[-1], toc4[-1]],
+                                "full_error": [error0,error1,error2,error3,error4],
+                                "full_time": [toc0,toc1,toc2,toc3,toc4],
+                                "NbIterStop": [len(error0),len(error1),len(error2),len(error3),len(error4)]
+                            }
+                        )], ignore_index=True)
 
 
 # testing post-processing
