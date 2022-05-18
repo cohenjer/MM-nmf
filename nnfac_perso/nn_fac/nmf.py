@@ -442,7 +442,7 @@ def one_nmf_step(data, rank, U_in, V_in, norm_data, update_rule, beta,
     
     if update_rule == "hals":
         #cost = np.linalg.norm(data-np.dot(U,V))/np.prod(data.shape)  #+ 2 * (sparsity_coefficients[0] * np.linalg.norm(U, ord=1) + sparsity_coefficients[1] * np.linalg.norm(V, ord=1))
-        cost = np.sqrt(norm_data**2 - 2*np.sum(UtM*V) + np.sum(UtU*(V@V.T)) )/np.prod(data.shape)
+        cost = np.sqrt(np.abs(norm_data**2 - 2*np.sum(UtM*V) + np.sum(UtU*(V@V.T))) )/np.prod(data.shape)
     
     elif update_rule == "mu":
         cost = beta_div.beta_divergence(data, np.dot(U,V), beta)
