@@ -32,7 +32,7 @@ NbIter_inner_list = [10]
 tol = 0 #running all 5k iterations
 
 # noise variance TODO change to snr
-sigma_list = [0,1e-7]
+sigma_list = [0,1e-7,1e-4]
 
 # Number of random inits
 NbSeed=10
@@ -107,8 +107,7 @@ for s in range(NbSeed): #[NbSeed-1]:#
                         err_it_3 = [error3[np.minimum(i,len(error3)-1)] for i in it_stamps]
                         err_it_4 = [error4[np.minimum(i,len(error4)-1)] for i in it_stamps]
 
-                        df = pd.concat([df,pd.DataFrame(
-                            {
+                        dic= {
                                 "batch_size": 5, # number of algorithms in each comparison run
                                 "method": ["NMF_LeeSeung",  "NeNMF_optimMajorant", "PGD", "NeNMF", "HALS"],
                                 "m": m,
@@ -120,15 +119,18 @@ for s in range(NbSeed): #[NbSeed-1]:#
                                 "NbIter_inner": NbIter_inner,
                                 "NbIter_hals": NbIter_hals,
                                 "tol": tol,
-                                "error_at_time_thr": [err_time_0,err_time_1,err_time_2,err_time_3,err_time_4],
-                                "error_at_at_thr": [err_it_0,err_it_1,err_it_2,err_it_3,err_it_4],
                                 "final_error": [error0[-1], error1[-1], error2[-1], error3[-1], error4[-1]],
                                 "total_time": [toc0[-1], toc1[-1], toc2[-1], toc3[-1], toc4[-1]],
                                 "full_error": [error0,error1,error2,error3,error4],
                                 "full_time": [toc0,toc1,toc2,toc3,toc4],
                                 "NbIterStop": [len(error0),len(error1),len(error2),len(error3),len(error4)]
                             }
-                        )], ignore_index=True)
+                        for thres_idx,thres in enumerate(time_stamps):
+                            dic["error_at_time_"+str(thres)] = [err_time_0[thres_idx],err_time_1[thres_idx],err_time_2[thres_idx],err_time_3[thres_idx],err_time_4[thres_idx]]
+                        for it_idx,it in enumerate(it_stamps):
+                            dic["error_at_it_"+str(it)] = [err_it_0[it_idx],err_it_1[it_idx],err_it_2[it_idx],err_it_3[it_idx],err_it_4[it_idx]]
+
+                        df = pd.concat([df,pd.DataFrame(dic)], ignore_index=True)
 
 
 # testing post-processing
@@ -149,41 +151,6 @@ plt.title('How many times each algorithm reached threshold the fastest (iters)')
 plt.xlabel('Rec error threshold')
 plt.ylabel('Number of faster runs')
 
-
-
-#fig = plt.figure(figsize=(6,3),tight_layout = {'pad': 0})
-
-#plt.semilogy(error0, label = 'Lee and Seung', linewidth = 3)
-#plt.semilogy(error1,'--', label = 'Pham et al', linewidth = 3)
-#plt.semilogy(error2,'--', label = 'Gradient descent', linewidth = 3)   
-#plt.semilogy(error3,'--', label = 'NeNMF', linewidth = 3)
-#plt.semilogy(error4,'--', label = 'HALS', linewidth = 3)
-#plt.title('Objective function values versus iterations', fontsize=14)# for different majorizing functions')
-#plt.xlabel('Iteration', fontsize=14)
-#plt.ylabel(r'$\log\left( || V - WH ||/nm \right)$', fontsize=14)
-#plt.legend(fontsize = 14)
-#plt.grid(True)
-
-#fig2 = plt.figure(figsize=(6,3),tight_layout = {'pad': 0})
-
-#plt.semilogy(toc0, error0, label = 'Lee and Seung', linewidth = 3)
-#plt.semilogy(toc1, error1,'--', label = 'Pham et al', linewidth = 3)
-#plt.semilogy(toc2, error2,'--', label = 'Gradient descent', linewidth = 3)   
-#plt.semilogy(toc3, error3,'--', label = 'NeNMF', linewidth = 3)
-#plt.semilogy(toc4, error4,'--', label = 'HALS', linewidth = 3)
-#plt.title('Objective function values versus time', fontsize=14)# for different majorizing functions')
-#plt.xlabel('Time (s)', fontsize=14)
-#plt.ylabel(r'$\log\left( || V - WH ||/nm \right)$', fontsize=14)
-#plt.legend(fontsize = 14)
-#plt.grid(True)
-
-
-#print('Lee and Seung: Error = '+str(np.mean(Error0)) + '; NbIter = '  + str(np.mean(NbIterStop0)) + '; Elapsed time = '+str(time0)+ '\n')
-#print('Pham et al: Error = '+str(np.mean(Error1)) + '; NbIter = '  + str(np.mean(NbIterStop1)) + '; Elapsed time = '+str(time1)+ '\n')
-#print('Gradient descent: Error = '+str(np.mean(Error2)) + '; NbIter = '  + str(np.mean(NbIterStop2)) + '; Elapsed time = '+str(time2)+ '\n')
-#print('NeNMF: Error = '+str(np.mean(Error3)) + '; NbIter = '  + str(np.mean(NbIterStop3)) + '; Elapsed time = '+str(time3)+ '\n')
-#print('HALS: Error = '+str(np.mean(Error4)) + '; NbIter = '  + str(np.mean(NbIterStop4)) + '; Elapsed time = '+str(time4)+ '\n')
-
 # Plots with all runs
 
 # Plotting a few curves for all methods
@@ -199,19 +166,25 @@ for idx_pd,i in enumerate(df["full_error"]):
             "rec_err":i,
             "method":df.iloc[idx_pd]["method"],
             "run":df.iloc[idx_pd]["seed_idx"],
-            "inner": df.iloc[idx_pd]["NbIter_inner"]
+            "inner": df.iloc[idx_pd]["NbIter_inner"],
+            "m": df.iloc[idx_pd]["m"],
+            "n": df.iloc[idx_pd]["n"],
+            "r": df.iloc[idx_pd]["r"],
+            "sigma": df.iloc[idx_pd]["noise_variance"]
         })], ignore_index=True)
 
 # cutting time for more regular plots
 maxtime = 0.5
-
 df2 = df2[df2["time"]<maxtime]
 
-pxfig = px.line(df2, x="time", y= "rec_err",color='method',facet_col="run",facet_row="inner",
+# small preprocessing for grouping plots
+df2["groups"] = list(zip(df2["r"],df2["n"],df2["m"],df2["sigma"]))
+
+pxfig = px.line(df2, line_group="groups", x="time", y= "rec_err", color='method',facet_col="run",facet_row="inner",
               log_y=True,
               height=1000)
 pxfig.update_layout(font = dict(size = 20))
-pxfig2 = px.line(df2, x="it", y= "rec_err",color='method',facet_col="run",facet_row="inner",
+pxfig2 = px.line(df2, line_group="groups", x="it", y= "rec_err", color='method',facet_col="run",facet_row="inner",
               log_y=True,
               height=1000)
 pxfig2.update_layout(font = dict(size = 20))
