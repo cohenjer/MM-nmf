@@ -5,6 +5,8 @@ import time
 import nn_fac
 import pandas as pd
 import plotly.express as px
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 import utils
 
 plt.close('all')
@@ -137,6 +139,17 @@ for s in range(NbSeed): #[NbSeed-1]:#
 thresh = np.logspace(-3,-8,50) 
 scores_time, scores_it, timings, iterations = utils.find_best_at_all_thresh(df,thresh, 5)
 
+#fig_winner = make_subplots(rows=1,cols=2)
+#for i in range(scores_time.shape[0]):
+    #fig_winner.add_trace(
+        #go.Scatter(x = thresh, y=scores_time[i,:]), row=1,col=1
+    #)
+    #fig_winner.add_trace(
+        #go.Scatter(x = thresh, y=scores_it[i,:]), row=1,col=2
+    #)
+##fig_winner.update_layout(height=600, width=800, title_text="Side By Side Subplots")
+#fig_winner.show()
+
 fig0 = plt.figure()
 plt.subplot(121)
 plt.semilogx(thresh, scores_time.T)
@@ -151,12 +164,13 @@ plt.title('How many times each algorithm reached threshold the fastest (iters)')
 plt.xlabel('Rec error threshold')
 plt.ylabel('Number of faster runs')
 
-# Boxplots with errors after fixed time
-#todo: x axis put interesting things
+# Boxplots with errors after fixed time/iterations
+xax = "noise_variance"
+facet_row = "r"
 
-fig_box = px.box(df, y="error_at_time_0.1", color="method", x="noise_variance", log_y=True, template="plotly_white")
-fig_box2 = px.box(df, y="error_at_time_0.5", color="method", x="noise_variance", log_y=True, template="plotly_white")
-fig_box3 = px.box(df, y="error_at_time_1", color="method", x="noise_variance", log_y=True, template="plotly_white")
+fig_box = px.box(df, y="error_at_time_0.1", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
+fig_box2 = px.box(df, y="error_at_time_0.5", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
+fig_box3 = px.box(df, y="error_at_time_1", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
 fig_box.update_xaxes(type='category')
 fig_box2.update_xaxes(type='category')
 fig_box3.update_xaxes(type='category')
@@ -164,10 +178,9 @@ fig_box.show()
 fig_box2.show()
 fig_box3.show()
 
-# Boxplots with errors after fixed time
-fig_box_it = px.box(df, y="error_at_it_10", color="method", x="noise_variance", log_y=True, template="plotly_white")
-fig_box_it_2 = px.box(df, y="error_at_it_50", color="method", x="noise_variance", log_y=True, template="plotly_white")
-fig_box_it_3 = px.box(df, y="error_at_it_300", color="method", x="noise_variance", log_y=True, template="plotly_white")
+fig_box_it = px.box(df, y="error_at_it_10", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
+fig_box_it_2 = px.box(df, y="error_at_it_50", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
+fig_box_it_3 = px.box(df, y="error_at_it_300", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
 fig_box_it.update_xaxes(type='category')
 fig_box_it_2.update_xaxes(type='category')
 fig_box_it_3.update_xaxes(type='category')
@@ -179,6 +192,7 @@ fig_box_it_3.show()
 
 # Plotting a few curves for all methods
 nb_run_show=5
+maxtime = 0.5
 
 df2 = pd.DataFrame()
 for idx_pd,i in enumerate(df["full_error"]):
@@ -198,7 +212,6 @@ for idx_pd,i in enumerate(df["full_error"]):
         })], ignore_index=True)
 
 # cutting time for more regular plots
-maxtime = 0.5
 df2 = df2[df2["time"]<maxtime]
 
 # small preprocessing for grouping plots
