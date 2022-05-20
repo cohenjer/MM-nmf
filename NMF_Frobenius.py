@@ -165,8 +165,8 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         A1 = W.T.dot(W)
         Hess1 = lambda X: A1.dot(X)
         B1 = W.T.dot(V)
+        aux_H = auxiliary(Hess1, B1, H)   
         for ih in range(NbIter_inner):
-            aux_H = auxiliary(Hess1, B1, H)   
             H =  np.maximum(H + gamma*aux_H*(B1 - Hess1(H)), epsilon)
             # ii = np.all((H>=0))
             # if ~ii:
@@ -177,8 +177,9 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         A2 = H.dot(H.T)
         Hess2 = lambda X: X.dot(A2)
         B2 = V.dot(H.T)
+        aux_W =  auxiliary(Hess2, B2, W) 
         for iw in range(NbIter_inner):
-            aux_W =  auxiliary(Hess2, B2, W) 
+            # Q: outside loop?
             W = np.maximum(W + gamma*aux_W*(B2 - Hess2(W)), epsilon)
                
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
@@ -416,6 +417,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         
         A1 = W.T.dot(W)
         B1 = W.T@V
+        # Q: 
         sqrtB1 =np.sqrt(W.T.dot(V))
         # find the zero entries of B
         # Independent of X, computation time could be saved
