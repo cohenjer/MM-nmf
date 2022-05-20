@@ -417,8 +417,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         
         A1 = W.T.dot(W)
         B1 = W.T@V
-        # Q: 
-        sqrtB1 =np.sqrt(W.T.dot(V))
+        sqrtB1 =np.sqrt(B1)
         # find the zero entries of B
         # Independent of X, computation time could be saved
     
@@ -431,7 +430,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         
         A2 = H.dot(H.T)
         B2 = V@H.T
-        sqrtB2 = np.sqrt(V.dot(H.T))
+        sqrtB2 = np.sqrt(B2)
         # Independent of X, computation time could be saved
               
         Lh = sqrtB2/(sqrtB2.dot(A2)+1e-10)        
