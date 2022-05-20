@@ -78,7 +78,7 @@ for s in range(NbSeed): #[NbSeed-1]:#
 
                     for NbIter_inner in  NbIter_inner_list:
                         # One noise, one init; NMF is not unique and nncvx so we will find several results
-                        error0, W0, H0, toc0 = nmf_f.NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol)
+                        error0, W0, H0, toc0 = nmf_f.NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False)
                         error1, W1, H1, toc1  = nmf_f.NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner)
                         #error1, W1, H1, toc1 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
                         error2, W2, H2, toc2  = nmf_f.Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol)
@@ -168,9 +168,9 @@ plt.ylabel('Number of faster runs')
 xax = "noise_variance"
 facet_row = "r"
 
-fig_box = px.box(df, y="error_at_time_0.1", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
-fig_box2 = px.box(df, y="error_at_time_0.5", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
-fig_box3 = px.box(df, y="error_at_time_1", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
+fig_box = px.box(df, y="error_at_time_0.1", color="method", x=xax, facet_col=facet_row, log_y=True, template="plotly_white")
+fig_box2 = px.box(df, y="error_at_time_0.5", color="method", x=xax, facet_col=facet_row, log_y=True, template="plotly_white")
+fig_box3 = px.box(df, y="error_at_time_1", color="method", x=xax, facet_col=facet_row, log_y=True, template="plotly_white")
 fig_box.update_xaxes(type='category')
 fig_box2.update_xaxes(type='category')
 fig_box3.update_xaxes(type='category')
@@ -178,9 +178,9 @@ fig_box.show()
 fig_box2.show()
 fig_box3.show()
 
-fig_box_it = px.box(df, y="error_at_it_10", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
-fig_box_it_2 = px.box(df, y="error_at_it_50", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
-fig_box_it_3 = px.box(df, y="error_at_it_300", color="method", x=xax, facet_row=facet_row, log_y=True, template="plotly_white")
+fig_box_it = px.box(df, y="error_at_it_10", color="method", x=xax, facet_col=facet_row, log_y=True, template="plotly_white")
+fig_box_it_2 = px.box(df, y="error_at_it_50", color="method", x=xax, facet_col=facet_row, log_y=True, template="plotly_white")
+fig_box_it_3 = px.box(df, y="error_at_it_300", color="method", x=xax, facet_col=facet_row, log_y=True, template="plotly_white")
 fig_box_it.update_xaxes(type='category')
 fig_box_it_2.update_xaxes(type='category')
 fig_box_it_3.update_xaxes(type='category')

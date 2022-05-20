@@ -69,7 +69,7 @@ NbIter = 500
 NbIter_hals = 150
 NbIter_inner = 10
 Nb_seeds = 5
-pert_sigma = 0.001
+pert_sigma = 0.1
 epsilon = 1e-8
 use_gt = 0
 
@@ -91,8 +91,10 @@ for s in range(Nb_seeds):
     error0, W0, H0, toc0 = nmf_f.NMF_Lee_Seung(Y,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon)
     print('Running our proposed NeNMF')
     error1, W1, H1, toc1  = nmf_f.NeNMF_optimMajo(Y, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon)
+    print('Running proposed MU')
+    # todo
+    #error5, W5, H5, toc5 = nmf_f.NMF_proposed_Frobenius(Y, Wini, Hini, NbIter, NbIter_inner, tol=tol)
     print('Running Proximal Gradient Descent')
-    #error1, W1, H1, toc1 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
     error2, W2, H2, toc2  = nmf_f.Grad_descent(Y , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon)
     print('Running NeNMF')
     error3, W3, H3, toc3  = nmf_f.NeNMF(Y, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, epsilon=epsilon)
