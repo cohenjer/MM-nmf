@@ -1,13 +1,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import NMF_Frobenius as nmf_f 
-import time
 import nn_fac
 import pandas as pd
 import plotly.express as px
-from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-import utils
 
 # Personnal comparison toolbox
 # you can get it at 
@@ -17,61 +14,15 @@ from shootout.methods.post_processors import find_best_at_all_thresh, df_to_conv
 from shootout.methods.plotters import plot_speed_comparison
 
 plt.close('all')
-# Fixe the matrix sizes
-
-# Seeding
-#np.random.seed(hash(´toto'))
 
 # --------------------- Choose parameters for grid tests ------------ #
-# dimensions
-m_list = [100]
-n_list = [100,200]
-r_list = [10] #30
-
-# Max number of iterations
-NbIter = 3000
-NbIter_hals = 1000 
-# Fixed number of inner iterations
-NbIter_inner_list = [10]
-#NbIter_inner_list = [1,2,5,10,20,30]
-# Stopping criterion error<tol
-tol = 0 #running all 5k iterations
-
-# noise variance TODO change to snr
-sigma_list = [0,1e-7,1e-4]
-
-# Number of random inits
-NbSeed=10
-# -----------------------------------------------------------------------
-
-Error0 = np.zeros(NbSeed)
-Error1 = np.zeros(NbSeed)
-Error2 = np.zeros(NbSeed)     
-Error3 = np.zeros(NbSeed)
-Error4 = np.zeros(NbSeed)
-
-NbIterStop0 = np.zeros(NbSeed)
-NbIterStop1 = np.zeros(NbSeed)
-NbIterStop2 = np.zeros(NbSeed)
-NbIterStop3 = np.zeros(NbSeed)
-NbIterStop4 = np.zeros(NbSeed)
-
-#for s in range(NbSeed): #[NbSeed-1]:#
-
-    ## friendly print
-    #print(s)
-        
-    #for r in r_list:
-        #for sigma in sigma_list:
-            #for n in n_list:
-                #for m in m_list:
 @run_and_track(algorithm_names=["Lee_Sung","Proposed","GD", "NeNMF", "HALS"],path_store="Results/", name_store="Euclidean_run_test",
                 nb_seeds=0, # Change this to >0 to run experiments
                 m = [100],
                 n = [100,200],
                 r = [10],
                 sigma = [0,1e-7,1e-4],
-                NbIter_inner = 10,
+                NbIter_inner = 10
                 )
 def one_run(m=100,n=100,r=10,sigma=0, NbIter=3000,NbIter_hals=1000,tol=0,NbIter_inner=10):
     # Fixed the signal 
@@ -83,10 +34,8 @@ def one_run(m=100,n=100,r=10,sigma=0, NbIter=3000,NbIter_hals=1000,tol=0,NbIter_
     Hini = np.random.rand(r, n)
     Wini = np.random.rand(m, r) #sparse.random(rV, cW, density=0.25).toarray() 
     
-    # adding noise to the observed data
-    s = np.random.randint(1)
-    np.random.seed(s)
-    N = sigma*np.random.rand(m,n)
+    # adding Gaussian noise to the observed data
+    N = sigma*np.random.randn(m,n)
     V = Vorig + N
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
