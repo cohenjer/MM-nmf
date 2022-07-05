@@ -7,6 +7,8 @@ Created on Tue Jun 22 23:04:24 2021
 """
 
 
+## OLD FILE !!!
+
 import numpy as np
 #from numpy import linalg as la
 from matplotlib import pyplot as plt
