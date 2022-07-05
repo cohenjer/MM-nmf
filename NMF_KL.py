@@ -88,6 +88,9 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
         non-negative estimated matrix.
 
     """
+    toc = [0]
+    tic = time.time()
+
     if verbose:
         print("\n------Lee_Sung_KL running------")
 
@@ -99,7 +102,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
     if legacy:
         epsilon=0
      
-    
+
     for k in range(NbIter):
         
         
@@ -123,15 +126,16 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
         
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
+        toc.append(time.time()-tic)
         if verbose:
             if k%100==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
         # Check if the error is small enough to stop the algorithm 
-        if (crit[k] <= tol):
-            
-            return crit, W, H 
+        if tol:
+            if (crit[k] <= tol):
+                return crit, W, H, tol 
         
-    return crit, W, H   
+    return crit, W, H, toc 
     
 
 ############################################################################ 
@@ -167,6 +171,9 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
     with the beta-divergence ", Neural Compuation, 2011.
 
     """
+    toc = [0]
+    tic = time.time()
+
     if verbose:
         print("\n------Fevotte_Idier_KL running------")
     W = Wini.copy()
@@ -179,7 +186,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
     WH = W.dot(H)
  
     crit = [compute_error(V, WH, ind0, ind1)]
-         
+     
     for k in range(NbIter):
         
         sumH = np.repeat(np.sum(H, axis = 1)[None, :], m , axis = 0)
@@ -204,16 +211,17 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
         H = np.maximum (H * scale[:,None], epsilon)
                
         crit.append(compute_error(V, WH, ind0, ind1))
+        toc.append(time.time()-tic)
         if verbose:
             if k%100==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-            
-        if (crit[k] <= tol):
-             
-            return  crit,  W, H 
+
+        if tol: 
+            if (crit[k] <= tol):
+                return  crit,  W, H, toc
     
  
-    return  crit, W, H 
+    return  crit, W, H, toc
 
 
 #####-------------------------------------------------------------
@@ -267,6 +275,9 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
     """
     TODO
     """
+    toc = [0]
+    tic = time.time()
+
     if verbose:
         print("\n------NeNMF_KL running------")
     W = Wini.copy()
@@ -298,14 +309,15 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
         #error.append(la.norm(Vorig- WH)/error_norm)
         
         crit.append(compute_error(V, W.dot(H), ind0, ind1))
+        toc.append(time.time()-tic)
         if verbose:
             if k%100==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-
-        if (crit[k] <= tol):
-            return crit,  W, H 
+        if tol:
+            if (crit[k] <= tol):
+                return crit,  W, H, toc
             
-    return crit, W, H
+    return crit, W, H, toc
     
 
 
@@ -345,6 +357,8 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
         non-negative estimated matrix.
 
     """
+    toc = [0]
+    tic = time.time()
     if verbose:
         print("\n------Proposed_MU_KL running------")
 
@@ -388,13 +402,15 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
           
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
+        toc.append(time.time()-tic)
         if verbose:
             if k%100==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
         # Check if the error is small enough to stop the algorithm 
-        if (crit[k] <= tol):
-            return crit,  W, H 
-    return crit, W, H    
+        if tol:
+            if (crit[k] <= tol):
+                return crit,  W, H, toc 
+    return crit, W, H, toc    
 
 
 
