@@ -18,7 +18,7 @@ plt.close('all')
 algs = ["Lee_Sung", "Fevotte_Idier", "Proposed"]
 nb_seeds = 3
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store="KL_run_unif_noise",
-                nb_seeds=nb_seeds, # Change this to >0 to run experiments
+                nb_seeds=0,#nb_seeds, # Change this to >0 to run experiments
                 m = [50,100],
                 n = [50,100],
                 r = [5,10],
@@ -65,7 +65,7 @@ thresh = np.logspace(-3,-8,50)
 scores_time, scores_it, timings, iterations = find_best_at_all_thresh(df,thresh, nb_seeds)
 
 # Adding in results errors at specific timings and iterations
-df = error_at_time_or_it(df, time_stamps=[0.1, 0.5, 1], it_stamps=[10, 50, 300])
+#df = error_at_time_or_it(df, time_stamps=[0.1, 0.5, 1], it_stamps=[10, 50, 300])
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
@@ -80,36 +80,39 @@ fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
 fig_winner.show()
 
 ## Boxplots with errors after fixed time/iterations
+# Not so interesting
 # TODO: automate these plots
-xax = "sigma"
+#xax = "sigma"
 
-fig_box = px.box(df, y="err_at_time_0.1", color="algorithm", x=xax, log_y=True, template="plotly_white")
-fig_box2 = px.box(df, y="err_at_time_0.5", color="algorithm", x=xax,log_y=True, template="plotly_white")
-fig_box3 = px.box(df, y="err_at_time_1", color="algorithm", x=xax, log_y=True, template="plotly_white")
-fig_box.update_xaxes(type='category')
-fig_box2.update_xaxes(type='category')
-fig_box3.update_xaxes(type='category')
-fig_box.show()
-fig_box2.show()
-fig_box3.show()
-fig_box_it = px.box(df, y="err_at_it_10", color="algorithm", x=xax,log_y=True, template="plotly_white")
-fig_box_it_2 = px.box(df, y="err_at_it_50", color="algorithm", x=xax, log_y=True, template="plotly_white")
-fig_box_it_3 = px.box(df, y="err_at_it_300", color="algorithm", x=xax, log_y=True, template="plotly_white")
-fig_box_it.update_xaxes(type='category')
-fig_box_it_2.update_xaxes(type='category')
-fig_box_it_3.update_xaxes(type='category')
-fig_box_it.show()
-fig_box_it_2.show()
-fig_box_it_3.show()
+#fig_box = px.box(df, y="err_at_time_0.1", color="algorithm", x=xax, log_y=True, template="plotly_white")
+#fig_box2 = px.box(df, y="err_at_time_0.5", color="algorithm", x=xax,log_y=True, template="plotly_white")
+#fig_box3 = px.box(df, y="err_at_time_1", color="algorithm", x=xax, log_y=True, template="plotly_white")
+#fig_box.update_xaxes(type='category')
+#fig_box2.update_xaxes(type='category')
+#fig_box3.update_xaxes(type='category')
+#fig_box.show()
+#fig_box2.show()
+#fig_box3.show()
+#fig_box_it = px.box(df, y="err_at_it_10", color="algorithm", x=xax,log_y=True, template="plotly_white")
+#fig_box_it_2 = px.box(df, y="err_at_it_50", color="algorithm", x=xax, log_y=True, template="plotly_white")
+#fig_box_it_3 = px.box(df, y="err_at_it_300", color="algorithm", x=xax, log_y=True, template="plotly_white")
+#fig_box_it.update_xaxes(type='category')
+#fig_box_it_2.update_xaxes(type='category')
+#fig_box_it_3.update_xaxes(type='category')
+#fig_box_it.show()
+#fig_box_it_2.show()
+#fig_box_it_3.show()
 
 # Convergence plots with all runs
-pxfig = px.line(df_conv, line_group="groups", x="timings", y= "errors", color='algorithm',facet_col="sigma",
-              log_y=True,
-              height=1000)
+pxfig = px.line(df_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
+            facet_col="NbIter_inner", facet_row="sigma",
+            log_y=True,
+            height=1000)
 pxfig.update_layout(font = dict(size = 20))
-pxfig2 = px.line(df_conv, line_group="groups", x="it", y= "errors", color='algorithm',facet_col="sigma",
-              log_y=True,
-              height=1000)
+pxfig2 = px.line(df_conv, line_group="groups", x="it", y= "errors", color='algorithm',
+            facet_col="NbIter_inner", facet_row="sigma",
+            log_y=True,
+            height=1000)
 pxfig2.update_layout(font = dict(size = 20))
 pxfig.show()
 pxfig2.show()
