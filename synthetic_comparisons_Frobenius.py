@@ -14,9 +14,9 @@ from shootout.methods.post_processors import find_best_at_all_thresh, df_to_conv
 from shootout.methods.plotters import plot_speed_comparison
 
 plt.close('all')
-
 # --------------------- Choose parameters for grid tests ------------ #
-@run_and_track(algorithm_names=["Lee_Sung","Proposed","GD", "NeNMF", "HALS"],path_store="Results/", name_store="Euclidean_run_test",
+algs = ["Lee_Sung","Proposed","GD", "NeNMF", "HALS"]
+@run_and_track(algorithm_names=algs, path_store="Results/", name_store="Euclidean_run_test",
                 nb_seeds=0, # Change this to >0 to run experiments
                 m = [100],
                 n = [100,200],
@@ -71,7 +71,7 @@ df_conv = df_to_convergence_df(df, max_time=0.9, filters={"n":100}, groups=True,
 
 # ----------------------- Plot --------------------------- #
 # TODO: go to plotly
-fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=["Lee_Sung","Proposed","GD", "NeNMF", "HALS"])
+fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
 fig_winner.show()
 
 ## Boxplots with errors after fixed time/iterations
