@@ -40,7 +40,7 @@ def compute_error(V, WH, ind0=None, ind1=None):
         if not ind1:
             ind1 = np.zeros(V.shape,dtype=bool)
         return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
-    return np.sum(V* np.log(V/WH) - V + WH) + np.sum(WH)
+    return np.sum(V* np.log(V/WH) - V + WH)
 
 #%% Stoppig criteria
 
