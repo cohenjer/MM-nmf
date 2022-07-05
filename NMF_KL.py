@@ -352,11 +352,9 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
     H = Hini.copy()
     WH = W.dot(H)
 
-    # Bug? why sum WH?
+    # Precomputations
     sumH = (np.sum(WH, axis = 0))[None,:]   
     sumW = (np.sum(WH, axis = 1))[:, None]   
-    #sumH = (np.sum(H, axis = 0))[None,:]   
-    #sumW = (np.sum(W, axis = 1))[:, None]   
     
     crit = [compute_error(V, WH, ind0, ind1)]
      
@@ -372,6 +370,8 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
         aux_W = sumW/(np.sum(sum_H)*W.shape[0]*np.repeat(np.sqrt(sum_H),W.shape[0], axis=0))
         for iw in range(nb_inner):       
             W = np.maximum(W + np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon)
+            #W = np.maximum(W + aux_W*((V/WH).dot(H.T) - sum_H), epsilon)
+            #W = W + aux_W*((V/WH).dot(H.T) - sum_H)
             WH = W.dot(H)
             
         # FIXED W ESTIMATE H        
@@ -380,7 +380,9 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
         aux_H = sumH/(np.sum(sum_W)*H.shape[1]*np.repeat(np.sqrt(sum_W),H.shape[1], axis=1) )
         
         for ih in range(nb_inner):
-            H = np.maximum(H + np.maximum (aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon)
+            H = np.maximum(H + np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon)
+            #H = np.maximum(H + aux_H*((W.T).dot(V/WH)- sum_W ), epsilon)
+            #H = H + aux_H*((W.T).dot(V/WH)- sum_W )
  
             WH = W.dot(H)
           
@@ -416,8 +418,8 @@ if __name__ == '__main__':
     WH = Worig.dot(Horig)
    
     # Parameters
-    nb_inner = 10# nb of algo iterations
-    NbIter = 1000
+    nb_inner = 4# nb of algo iterations
+    NbIter = 3000
     
     # adding noise to the observed data
     sigma = 0#1e-6
@@ -474,6 +476,7 @@ if __name__ == '__main__':
         
         time_start2 = time.time()  
         stepsize=[1e-5,1e-5]
+        #stepsize=None
         crit2, W2, H2  =NeNMF_KL(V, Wini, Hini, nb_inner=nb_inner, 
             epsilon=epsilon, verbose=verbose, NbIter=NbIter, stepsize=stepsize)   
         time2 = time.time() - time_start2     
