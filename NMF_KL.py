@@ -40,8 +40,7 @@ def compute_error(V, WH, ind0=None, ind1=None):
         if not ind1:
             ind1 = np.zeros(V.shape,dtype=bool)
         return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
-    return np.sum(V* np.log(V/WH) - V + WH)
-
+    return np.sum(V* np.log(V/WH) - V + WH)  
 #%% Stoppig criteria
 
 def Criteria_stopping(dH, H, dW, W):
@@ -52,7 +51,7 @@ def Criteria_stopping(dH, H, dW, W):
 ############################################################################
 ############################ PMF algorithm version Lee and Seung
     
-def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, legacy=False, verbose=False, print_it=100):
+def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, legacy=False, verbose=False):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -88,9 +87,6 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
         non-negative estimated matrix.
 
     """
-    toc = [0]
-    tic = time.time()
-
     if verbose:
         print("\n------Lee_Sung_KL running------")
 
@@ -102,7 +98,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
     if legacy:
         epsilon=0
      
-
+    
     for k in range(NbIter):
         
         
@@ -126,23 +122,22 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
         
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
         if verbose:
-            if k%print_it==0:
+            if k%100==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
         # Check if the error is small enough to stop the algorithm 
-        if tol:
-            if (crit[k] <= tol):
-                return crit, W, H, tol 
+        if (crit[k] <= tol):
+            
+            return crit, W, H 
         
-    return crit, W, H, toc 
+    return crit, W, H   
     
 
 ############################################################################ 
 # Beta divergence method 
 ############################################################################
 
-def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol = 1e-7, legacy=False, verbose=False, print_it=100):
+def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol = 1e-7, legacy=False, verbose=False):
 
     """
     Method proposed in C. Fevotte & J. Idier, "Algorithms for nonnegative matrix factorization
@@ -171,9 +166,6 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
     with the beta-divergence ", Neural Compuation, 2011.
 
     """
-    toc = [0]
-    tic = time.time()
-
     if verbose:
         print("\n------Fevotte_Idier_KL running------")
     W = Wini.copy()
@@ -186,7 +178,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
     WH = W.dot(H)
  
     crit = [compute_error(V, WH, ind0, ind1)]
-     
+         
     for k in range(NbIter):
         
         sumH = np.repeat(np.sum(H, axis = 1)[None, :], m , axis = 0)
@@ -211,17 +203,16 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
         H = np.maximum (H * scale[:,None], epsilon)
                
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
         if verbose:
-            if k%print_it==0:
+            if k%100==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-
-        if tol: 
-            if (crit[k] <= tol):
-                return  crit,  W, H, toc
+            
+        if (crit[k] <= tol):
+             
+            return  crit,  W, H 
     
  
-    return  crit, W, H, toc
+    return  crit, W, H 
 
 
 #####-------------------------------------------------------------
@@ -271,13 +262,10 @@ def OGM_W(V,W,H, L, nb_inner, epsilon):
 
          
          
-def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, stepsize=None, print_it=100):
+def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, stepsize=None):
     """
     TODO
     """
-    toc = [0]
-    tic = time.time()
-
     if verbose:
         print("\n------NeNMF_KL running------")
     W = Wini.copy()
@@ -309,15 +297,14 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
         #error.append(la.norm(Vorig- WH)/error_norm)
         
         crit.append(compute_error(V, W.dot(H), ind0, ind1))
-        toc.append(time.time()-tic)
         if verbose:
-            if k%print_it==0:
+            if k%100==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-        if tol:
-            if (crit[k] <= tol):
-                return crit,  W, H, toc
+
+        if (crit[k] <= tol):
+            return crit,  W, H 
             
-    return crit, W, H, toc
+    return crit, W, H
     
 
 
@@ -326,7 +313,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 ############################################################################
 
     
-def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100):
+def Proposed_KL(V, Wini, Hini, sumH, sumW, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -357,19 +344,16 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
         non-negative estimated matrix.
 
     """
-    toc = [0]
-    tic = time.time()
     if verbose:
         print("\n------Proposed_MU_KL running------")
 
     W = Wini.copy()
     H = Hini.copy()
     WH = W.dot(H)
-
-    # Precomputations
-    sumH = (np.sum(WH, axis = 0))[None,:]   
-    sumW = (np.sum(WH, axis = 1))[:, None]   
     
+    #sumH = (np.sum(W.dot(H), axis = 0))[None,:]   
+    #sumW = (np.sum(W.dot(H), axis = 1))[:, None]   
+   
     crit = [compute_error(V, WH, ind0, ind1)]
      
     
@@ -384,8 +368,6 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
         aux_W = sumW/(np.sum(sum_H)*W.shape[0]*np.repeat(np.sqrt(sum_H),W.shape[0], axis=0))
         for iw in range(nb_inner):       
             W = np.maximum(W + np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon)
-            #W = np.maximum(W + aux_W*((V/WH).dot(H.T) - sum_H), epsilon)
-            #W = W + aux_W*((V/WH).dot(H.T) - sum_H)
             WH = W.dot(H)
             
         # FIXED W ESTIMATE H        
@@ -394,23 +376,20 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
         aux_H = sumH/(np.sum(sum_W)*H.shape[1]*np.repeat(np.sqrt(sum_W),H.shape[1], axis=1) )
         
         for ih in range(nb_inner):
-            H = np.maximum(H + np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon)
-            #H = np.maximum(H + aux_H*((W.T).dot(V/WH)- sum_W ), epsilon)
-            #H = H + aux_H*((W.T).dot(V/WH)- sum_W )
+            H = np.maximum(H + np.maximum (aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon)
+ 
  
             WH = W.dot(H)
           
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
         if verbose:
-            if k%print_it==0:
+            if k%100==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
         # Check if the error is small enough to stop the algorithm 
-        if tol:
-            if (crit[k] <= tol):
-                return crit,  W, H, toc 
-    return crit, W, H, toc    
+        if (crit[k] <= tol):
+            return crit,  W, H 
+    return crit, W, H    
 
 
 
@@ -434,8 +413,8 @@ if __name__ == '__main__':
     WH = Worig.dot(Horig)
    
     # Parameters
-    nb_inner = 4# nb of algo iterations
-    NbIter = 3000
+    nb_inner = 10# nb of algo iterations
+    NbIter = 10000
     
     # adding noise to the observed data
     sigma = 0#1e-6
@@ -457,6 +436,13 @@ if __name__ == '__main__':
     NbIterStop1 = np.zeros(NbSeed)
     NbIterStop2 = np.zeros(NbSeed)
     NbIterStop3 = np.zeros(NbSeed)
+    
+    # Bug? why sum WH?
+    sumH = (np.sum(Vorig, axis = 0))[None,:]   
+    sumW = (np.sum(Vorig, axis = 1))[:, None]   
+    #sumH = (np.sum(H, axis = 0))[None,:]   
+    #sumW = (np.sum(W, axis = 1))[:, None]   
+    
         
     for  s in range(NbSeed): #[NbSeed-1]:#
         print('-------Noise with random seed =  ' +str(s)+'---------') 
@@ -492,7 +478,6 @@ if __name__ == '__main__':
         
         time_start2 = time.time()  
         stepsize=[1e-5,1e-5]
-        #stepsize=None
         crit2, W2, H2  =NeNMF_KL(V, Wini, Hini, nb_inner=nb_inner, 
             epsilon=epsilon, verbose=verbose, NbIter=NbIter, stepsize=stepsize)   
         time2 = time.time() - time_start2     
@@ -502,7 +487,7 @@ if __name__ == '__main__':
         
          
         time_start3 = time.time()  
-        crit3, W3, H3  = Proposed_KL(V, Wini, Hini, nb_inner=nb_inner, 
+        crit3, W3, H3  = Proposed_KL(V, Wini, Hini, sumH, sumW, nb_inner=nb_inner, 
             epsilon=epsilon, verbose=verbose, NbIter=NbIter)
         time3 = time.time() - time_start3     
         crit3 = np.array(crit3)
