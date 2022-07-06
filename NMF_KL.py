@@ -327,7 +327,8 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 ############################################################################
 
     
-def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100):
+def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_inner=10,
+                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=True):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -368,8 +369,10 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
     WH = W.dot(H)
 
     # Precomputations
-    sumH = (np.sum(WH, axis = 0))[None,:]   
-    sumW = (np.sum(WH, axis = 1))[:, None]   
+    if (not sumH) or (not sumW):
+        # Using noisy data to compute sums
+        sumH = (np.sum(V, axis = 0))[None,:]   
+        sumW = (np.sum(V, axis = 1))[:, None]   
     
     crit = [compute_error(V, WH, ind0, ind1)]
      
@@ -384,9 +387,10 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
         # TODO: repeat vs broadcasting? 
         aux_W = sumW/(np.sum(sum_H)*W.shape[0]*np.repeat(np.sqrt(sum_H),W.shape[0], axis=0))
         for iw in range(nb_inner):       
-            W = np.maximum(W + np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon)
-            #W = np.maximum(W + aux_W*((V/WH).dot(H.T) - sum_H), epsilon)
-            #W = W + aux_W*((V/WH).dot(H.T) - sum_H)
+            if use_LeeS:
+                W = np.maximum(W + np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon)
+            else:
+                W = np.maximum(W + aux_W*((V/WH).dot(H.T) - sum_H), epsilon)
             WH = W.dot(H)
             
         # FIXED W ESTIMATE H        
@@ -395,9 +399,10 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, 
         aux_H = sumH/(np.sum(sum_W)*H.shape[1]*np.repeat(np.sqrt(sum_W),H.shape[1], axis=1) )
         
         for ih in range(nb_inner):
-            H = np.maximum(H + np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon)
-            #H = np.maximum(H + aux_H*((W.T).dot(V/WH)- sum_W ), epsilon)
-            #H = H + aux_H*((W.T).dot(V/WH)- sum_W )
+            if use_LeeS:
+                H = np.maximum(H + np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon)
+            else:
+                H = np.maximum(H + aux_H*((W.T).dot(V/WH)- sum_W ), epsilon)
  
             WH = W.dot(H)
           
@@ -439,7 +444,7 @@ if __name__ == '__main__':
     NbIter = 3000
     
     # adding noise to the observed data
-    sigma = 0#1e-6
+    sigma = 0# 1e-6
 
     # Printing
     verbose=True 
@@ -458,6 +463,10 @@ if __name__ == '__main__':
     NbIterStop1 = np.zeros(NbSeed)
     NbIterStop2 = np.zeros(NbSeed)
     NbIterStop3 = np.zeros(NbSeed)
+
+    # Why ??
+    sumH = (np.sum(Vorig, axis = 0))[None,:]   
+    sumW = (np.sum(Vorig, axis = 1))[:, None]   
         
     for  s in range(NbSeed): #[NbSeed-1]:#
         print('-------Noise with random seed =  ' +str(s)+'---------') 
@@ -503,7 +512,7 @@ if __name__ == '__main__':
         
          
         time_start3 = time.time()  
-        crit3, W3, H3  = Proposed_KL(V, Wini, Hini, nb_inner=nb_inner, 
+        crit3, W3, H3  = Proposed_KL(V, Wini, Hini, sumH=sumH, sumW=sumW, nb_inner=nb_inner, 
             epsilon=epsilon, verbose=verbose, NbIter=NbIter)
         time3 = time.time() - time_start3     
         crit3 = np.array(crit3)
