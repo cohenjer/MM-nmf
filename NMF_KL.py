@@ -354,7 +354,7 @@ def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_in
     WH = W.dot(H)
 
     # Precomputations
-    if (not sumH) or (not sumW):
+    if (not sumH.any()) or (not sumW.any(0)):
         # Using noisy data to compute sums
         sumH = (np.sum(V, axis = 0))[None,:]   
         sumW = (np.sum(V, axis = 1))[:, None]   
@@ -427,7 +427,7 @@ if __name__ == '__main__':
    
     # Parameters
     nb_inner = 10# nb of algo iterations
-    NbIter = 10000
+    NbIter = 3000
     
     # adding noise to the observed data
     sigma = 0# 1e-6
