@@ -51,7 +51,7 @@ def Criteria_stopping(dH, H, dW, W):
 ############################################################################
 ############################ PMF algorithm version Lee and Seung
     
-def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, legacy=False, verbose=False):
+def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, legacy=False, verbose=False, print_it=100):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -123,7 +123,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
         if verbose:
-            if k%100==0:
+            if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
         # Check if the error is small enough to stop the algorithm 
         if (crit[k] <= tol):
@@ -138,7 +138,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
 # Beta divergence method 
 ############################################################################
 
-def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol = 1e-7, legacy=False, verbose=False):
+def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol = 1e-7, legacy=False, verbose=False, print_it=100):
 
     """
     Method proposed in C. Fevotte & J. Idier, "Algorithms for nonnegative matrix factorization
@@ -205,7 +205,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
                
         crit.append(compute_error(V, WH, ind0, ind1))
         if verbose:
-            if k%100==0:
+            if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
             
         if (crit[k] <= tol):
@@ -263,7 +263,7 @@ def OGM_W(V,W,H, L, nb_inner, epsilon):
 
          
          
-def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, stepsize=None):
+def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, stepsize=None, print_it=100):
     """
     TODO
     """
@@ -299,7 +299,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
         
         crit.append(compute_error(V, W.dot(H), ind0, ind1))
         if verbose:
-            if k%100==0:
+            if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
 
         if (crit[k] <= tol):
@@ -397,7 +397,7 @@ def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_in
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
         if verbose:
-            if k%100==0:
+            if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
         # Check if the error is small enough to stop the algorithm 
         if (crit[k] <= tol):
