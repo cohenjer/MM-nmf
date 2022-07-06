@@ -15,22 +15,24 @@ import time
 #%% Computing error
 
 def compute_error(V, WH, ind0=None, ind1=None):
-        
-        
     """
-    Method proposed in C. Fevotte & J. Idier, "Algorithms for nonnegative matrix factorization
-    with the beta-divergence ", Neural Compuation, 2011.
-    FOR THE KK CASE --> BETA = 1
+    Elementwise Kullback Leibler divergence
 
     Parameters
     ----------
-    V : non-negative matrix of size m x n  (data)
-    WH : TYPE
-        DESCRIPTION.
-     
+    V : 2darray
+        input data, left hand side of KL
+    WH : 2d array
+        right hand side of KL
+    ind0 : boolean 2d array, optional
+        table with True where V is not small, by default None
+    ind1 : boolean 2d array, optional
+        table with False where V is almost 0, by default None
+
     Returns
-    -----------
-    beta-divergen
+    -------
+    float
+        elementwise KL divergence
 
     """
         
@@ -42,11 +44,11 @@ def compute_error(V, WH, ind0=None, ind1=None):
         return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
     return np.sum(V* np.log(V/WH) - V + WH)
 
-#%% Stoppig criteria
+# Stoppig criteria
 
-def Criteria_stopping(dH, H, dW, W):
+#def Criteria_stopping(dH, H, dW, W):
     
-    return la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER 
+    #return la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER 
 
 
 ############################################################################
