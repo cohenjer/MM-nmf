@@ -369,7 +369,7 @@ def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_in
     WH = W.dot(H)
 
     # Precomputations
-    if (not sumH) or (not sumW):
+    if (sumH is None) or (sumW is None):
         # Using noisy data to compute sums
         sumH = (np.sum(V, axis = 0))[None,:]   
         sumW = (np.sum(V, axis = 1))[:, None]   
@@ -444,7 +444,7 @@ if __name__ == '__main__':
     NbIter = 3000
     
     # adding noise to the observed data
-    sigma = 0# 1e-6
+    sigma =  1e-6
 
     # Printing
     verbose=True 
@@ -465,8 +465,8 @@ if __name__ == '__main__':
     NbIterStop3 = np.zeros(NbSeed)
 
     # Why ??
-    sumH = (np.sum(Vorig, axis = 0))[None,:]   
-    sumW = (np.sum(Vorig, axis = 1))[:, None]   
+    sumH = None# (np.sum(Vorig, axis = 0))[None,:]   
+    sumW = None#(np.sum(Vorig, axis = 1))[:, None]   
         
     for  s in range(NbSeed): #[NbSeed-1]:#
         print('-------Noise with random seed =  ' +str(s)+'---------') 
@@ -482,39 +482,35 @@ if __name__ == '__main__':
         epsilon = 1e-8
  
         # Beta divergence 
-        time_start0 = time.time()
-        crit0, W0, H0 = Lee_Seung_KL(V, Wini, Hini, nb_inner=nb_inner,             
+        crit0, W0, H0, toc0 = Lee_Seung_KL(V, Wini, Hini, nb_inner=nb_inner,             
             epsilon=epsilon, verbose=verbose, NbIter=NbIter)
-        time0 = time.time() - time_start0  
+        time0 = toc0[-1] 
         crit0 = np.array(crit0)
         Error0[s] = crit0[-1] 
         NbIterStop0[s] = len(crit0)
           
          
-        time_start1 = time.time()
-        crit1, W1, H1  = Fevotte_KL(V, Wini, Hini, nb_inner=nb_inner, 
+        crit1, W1, H1, toc1  = Fevotte_KL(V, Wini, Hini, nb_inner=nb_inner, 
             epsilon=epsilon, verbose=verbose, NbIter=NbIter)
-        time1 = time.time() - time_start1     
+        time1 = toc1[-1]  
         crit1 = np.array(crit1)
         Error1[s] = crit1[-1] 
         NbIterStop1[s] = len(crit1)
         
         
-        time_start2 = time.time()  
         stepsize=[1e-5,1e-5]
         #stepsize=None
-        crit2, W2, H2  =NeNMF_KL(V, Wini, Hini, nb_inner=nb_inner, 
+        crit2, W2, H2, toc2  =NeNMF_KL(V, Wini, Hini, nb_inner=nb_inner, 
             epsilon=epsilon, verbose=verbose, NbIter=NbIter, stepsize=stepsize)   
-        time2 = time.time() - time_start2     
+        time2 = toc2[-1]     
         crit2 = np.array(crit2)
         Error2[s] = crit2[-1] 
         NbIterStop2[s] = len(crit2)
         
          
-        time_start3 = time.time()  
-        crit3, W3, H3  = Proposed_KL(V, Wini, Hini, sumH=sumH, sumW=sumW, nb_inner=nb_inner, 
+        crit3, W3, H3, toc3  = Proposed_KL(V, Wini, Hini, sumH=sumH, sumW=sumW, nb_inner=nb_inner, 
             epsilon=epsilon, verbose=verbose, NbIter=NbIter)
-        time3 = time.time() - time_start3     
+        time3 = toc3[-1]     
         crit3 = np.array(crit3)
         Error3[s] = crit3[-1] 
         NbIterStop3[s] = len(crit3)
