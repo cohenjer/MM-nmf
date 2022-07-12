@@ -26,7 +26,7 @@ def compute_error(Vnorm_sq,W,HHt,VHt,error_norm):
 #------------------------------------
 # PMF algorithm version Lee and Seung
 
-def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, tol=1e-7):
+def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, tol=1e-7, verbose=False):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -78,7 +78,10 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
-    
+
+    if verbose:
+        print("\n--------- MU Lee and Sung running ----------")
+
     for k in range(NbIter):
         
         # FIXED W ESTIMATE H      
@@ -103,6 +106,9 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
         err = compute_error(Vnorm_sq,W,HHt,VHt,error_norm)
         error.append(err)
         toc.append(time.time() - tic)
+        if verbose:
+            if k%100==0:
+                print("Error at iteration {}: {}".format(k+1,err))
         # check if the err is small enough to stop 
         if (error[-1] < tol):
             #if not legacy:
@@ -116,7 +122,7 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
 #------------------------------------
 #  NMF algorithm proposed version
  
-def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
+def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -158,6 +164,8 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
+    if verbose:
+        print("\n--------- MU proposed running ----------")
 
     for k in range(NbIter):
         
@@ -185,6 +193,9 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
         error.append(err)
         toc.append(time.time() - tic)
+        if verbose:
+            if k%100==0:
+                print("Error at iteration {}: {}".format(k+1,err))
         # Check if the error is smalle enough to stop the algorithm 
         if (error[-1] <tol):            
             print('algo stop at iteration =  '+str(k))
@@ -236,7 +247,7 @@ def auxiliary(Hess, B, X):
 
 ################## Gradient descent method
 
-def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
+def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False):
     
     """"
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -279,6 +290,8 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
+    if verbose:
+        print("\n--------- Gradient Descent running ----------")
      
     #inner_iter_total = 0 
     
@@ -303,6 +316,9 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8):
         err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
         error.append(err)
         toc.append(time.time()-tic)
+        if verbose:
+            if k%100==0:
+                print("Error at iteration {}: {}".format(k+1,err))
 
         # Check if the error is small enough to stop the algorithm 
         if (error[-1] <tol):
@@ -362,7 +378,7 @@ def OGM_W(VHt,W, Ah, L, nb_inner,epsilon):
             
         
          
-def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
+def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose=False):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
@@ -370,6 +386,9 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
+
+    if verbose:
+        print("\n--------- NeNMF running ----------")
 
     #inner_iter_total = 0
     #test   = 1 # 
@@ -393,13 +412,16 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8):
         err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
         error.append(err)
         toc.append(time.time()-tic)
+        if verbose:
+            if iter%100==0:
+                print("Error at iteration {}: {}".format(iter+1,err))
         iter+=1
         
     
     return error, W, H, toc#, inner_iter_total
 
 
-def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1e-8):
+def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1e-8, verbose=False, use_LeeS=True):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
@@ -407,6 +429,8 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
+    if verbose:
+        print("\n--------- MU extrapolated proposed running ----------")
     #inner_iter_total = 0
     #test   = 1 # 
     #while (test> tol): 
@@ -420,8 +444,9 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         sqrtB1 =np.sqrt(B1)
         # find the zero entries of B
         # Independent of X, computation time could be saved
-    
-        Lw = sqrtB1/(A1.dot(sqrtB1)+1e-10)
+        Lw = sqrtB1/(A1.dot(sqrtB1)+1e-10)        
+        if use_LeeS:
+            Lw = np.maximum(Lw, 1/la.norm(A1,2))
         
         #Lw = 1/la.norm(Aw,2)
         H     = OGM_H(B1, H, A1, Lw, nb_inner,epsilon)
@@ -434,6 +459,9 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         # Independent of X, computation time could be saved
               
         Lh = sqrtB2/(sqrtB2.dot(A2)+1e-10)        
+        if use_LeeS:
+            Lh = np.maximum(Lh,1/la.norm(A2,2))
+
         W = OGM_W(B2, W, A2, Lh, nb_inner, epsilon)
         #inner_iter_total = inner_iter_total+20
         #WH = W.dot(H)
@@ -443,6 +471,9 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
         error.append(err)
         toc.append(time.time()-tic)
+        if verbose:
+            if iter%100==0:
+                print("Error at iteration {}: {}".format(iter+1,err))
         iter += 1
     
     return error, W, H, toc#, inner_iter_total

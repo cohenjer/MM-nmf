@@ -17,7 +17,7 @@ plt.close('all')
 # --------------------- Choose parameters for grid tests ------------ #
 algs = ["Lee_Sung","Proposed","GD", "NeNMF", "HALS"]
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store="Euclidean_run_test",
-                nb_seeds=0, # Change this to >0 to run experiments
+                nb_seeds=3, # Change this to >0 to run experiments
                 m = [100],
                 n = [100,200],
                 r = [10],
