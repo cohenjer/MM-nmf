@@ -1,6 +1,8 @@
+from importlib.resources import path
 import numpy as np
 from scipy.linalg import hadamard
 import NMF_Frobenius as nmf_f 
+import NMF_KL as nmf_kl
 import matplotlib.pyplot as plt
 import nn_fac
 import pandas as pd
@@ -9,6 +11,7 @@ import utils
 from tensorly.tenalg.proximal import fista
 import soundfile as sf
 from scipy import signal
+import plotly.express as px
 # personal toolbox
 from shootout.methods.runners import run_and_track
 from shootout.methods.post_processors import find_best_at_all_thresh, df_to_convergence_df, error_at_time_or_it
@@ -66,47 +69,86 @@ Hgt = np.copy(H_nnls)
 #------------------------------------------------------------------
 # Computing the NMF to try and recover activations and templates
 m, n = Y.shape
-rank = 88
-beta = 2 # beta=1 data is big :(
-tol = 0
-NbIter = 500
-NbIter_hals = 150
-NbIter_inner = 10
 Nb_seeds = 5
-pert_sigma = 0.1
-epsilon = 1e-8
-use_gt = 0
+rank = 88
 
 df = pd.DataFrame()
 
 Wgt = Wgt[:,:rank]
 Hgt = Hgt[:rank,:]
-algs = ["Lee_Sung_l2", "Proposed_l2", "GD_l2", "NeNMF_l2", "HALS_l2"]
+algs = ["Lee_Sung_l2", "Proposed_l2", "GD_l2", "NeNMF_l2", "HALS_l2", "Lee_Sung_kl", "Fevotte_KL", "Proposed_KL"]
 
 @run_and_track(
-    nb_seeds=Nb_seeds,
+    nb_seeds=0,#Nb_seeds,
     algorithm_names=algs, 
+    path_store="Results/",
+    name_store="audio_test_06-07-2022"
 )
 def one_run(rank = 88,
             tol = 0,
-            NbIter = 500,
-            NbIter_hals = 150,
+            NbIter = 100,
+            NbIter_hals = 50,#150,
             NbIter_inner = 10,
             pert_sigma = 0.1,
+            use_gt = 0,
             epsilon = 1e-8):
     # Perturbing the initialization for randomization
     Wini = use_gt*Wgt + pert_sigma*np.random.rand(m, rank)
     Hini = use_gt*Hgt + pert_sigma*np.random.rand(rank, n)
 
-    error0, W0, H0, toc0 = nmf_f.NMF_Lee_Seung(Y,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon)
-    error1, W1, H1, toc1  = nmf_f.NeNMF_optimMajo(Y, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon)
-    error2, W2, H2, toc2  = nmf_f.Grad_descent(Y , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon)
-    error3, W3, H3, toc3  = nmf_f.NeNMF(Y, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, epsilon=epsilon)
-    W4, H4, error4, toc4 = nn_fac.nmf.nmf(Y, rank, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter_hals, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner)
+    # Frobenius algorithms
+    error0, W0, H0, toc0 = nmf_f.NMF_Lee_Seung(Y,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon, verbose=True)
+    error1, W1, H1, toc1  = nmf_f.NeNMF_optimMajo(Y, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon, verbose=True)
+    error2, W2, H2, toc2  = nmf_f.Grad_descent(Y , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon, verbose=True)
+    error3, W3, H3, toc3  = nmf_f.NeNMF(Y, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, epsilon=epsilon, verbose=True)
+    W4, H4, error4, toc4 = nn_fac.nmf.nmf(Y, rank, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter_hals, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner, verbose=True)
 
-    return {"errors": [error0, error1, error2, error3, error4], "timings": [toc0,toc1,toc2,toc3,toc4]}
+    # KL algorithms
+    error5, W5, H5, toc5 = nmf_kl.Lee_Seung_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True)
+    error6, W6, H6, toc6 = nmf_kl.Fevotte_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True)
+    error7, W7, H7, toc7 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True)
+
+    return {
+        "errors": [error0, error1, error2, error3, error4, error5, error6, error7],
+        "timings": [toc0,toc1,toc2,toc3,toc4,toc5,toc6,toc7],
+        "loss": 5*["l2"]+3*["kl"]
+            }
     
 
+name = "audio_test_06-07-2022"
+df = pd.read_pickle("Results/"+name)
+
+# Using shootout for plotting and postprocessing
+min_thresh = 0
+max_thresh = -10
+thresh = np.logspace(min_thresh,max_thresh,50)
+scores_time, scores_it, timings, iterations = find_best_at_all_thresh(df,thresh, Nb_seeds)
+
+# Making a convergence plot dataframe
+# We will show convergence plots for various sigma values, with only n=100
+df_l2_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"l2"})
+
+df_kl_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"kl"})
+# ----------------------- Plot --------------------------- #
+# TODO: go to plotly
+fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
+fig_winner.show()
+
+# Convergence plots with all runs
+pxfig = px.line(df_l2_conv, line_group="groups", x="timings", y= "errors", color='algorithm', 
+            log_y=True,
+            height=1000)
+pxfig.update_layout(font = dict(size = 20))
+pxfig2 = px.line(df_kl_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
+            log_y=True,
+            height=1000)
+pxfig2.update_layout(font = dict(size = 20))
+pxfig.show()
+pxfig2.show()
+
+plt.show()
 # Winner at given threshold plots
 #min_thresh = np.log10(error0[0])
 #max_thresh = np.log10(error1[-1])
