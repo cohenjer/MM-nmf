@@ -26,7 +26,7 @@ def compute_error(Vnorm_sq,W,HHt,VHt,error_norm):
 #------------------------------------
 # PMF algorithm version Lee and Seung
 
-def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, tol=1e-7, verbose=False):
+def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, delta=np.Inf):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -56,6 +56,13 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
         if legacy is False, factors satisfy H > epsilon, W > epsilon instead of elementwise nonnegativity.
     tol: float
         stopping criterion, algorithm stops if error<tol.
+    print_it: int
+        if verbose is true, sets the number of iterations between each print.
+        default: 100
+    delta: float
+        relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
+        A good value empirically: 0.5
+        default: np.Inf (no dynamic stopping)
 
     Returns
     -------
@@ -78,36 +85,54 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
+    cnt = []
 
     if verbose:
         print("\n--------- MU Lee and Sung running ----------")
+
+    if legacy:
+        epsilon=0
 
     for k in range(NbIter):
         
         # FIXED W ESTIMATE H      
         WtW = W.T@W
         WtV = W.T@V
+        inner_change_0 = 1
+        inner_change_l = np.Inf
         for j in range(NbIter_inner): 
-            if legacy:
-                H = (H*WtV)/ (WtW@H)
+            deltaH = np.maximum(H*(WtV/(WtW.dot(H)) - 1), epsilon-H)
+            H = H + deltaH
+            if j==0:
+                inner_change_0 = np.linalg.norm(deltaH)**2
             else:
-                H = np.maximum((H*WtV)/ (WtW@H), epsilon)
-        
+                inner_change_l = np.linalg.norm(deltaH)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+        cnt.append(j+1)
+
         # FIXED H ESTIMATE W
         VHt = V@H.T
         HHt = H@H.T
+        inner_change_0 = 1
+        inner_change_l = np.Inf
         for j in range(NbIter_inner):
-            if legacy:
-                W = (W*VHt)/ (W@HHt)
-            else: 
-                W = np.maximum((W*VHt)/ (W@HHt), epsilon)
+            deltaW = np.maximum(W*(VHt/(W.dot(HHt))-1), epsilon-W)
+            W = W + deltaW
+            if j==0:
+                inner_change_0 = np.linalg.norm(deltaW)**2
+            else:
+                inner_change_l = np.linalg.norm(deltaW)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+        cnt.append(j+1)
 
         # compute the error
         err = compute_error(Vnorm_sq,W,HHt,VHt,error_norm)
         error.append(err)
         toc.append(time.time() - tic)
         if verbose:
-            if k%100==0:
+            if k%print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
         # check if the err is small enough to stop 
         if (error[-1] < tol):
@@ -115,14 +140,14 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=True, epsilon=1e-8, to
             #   # Putting zeroes where we thresholded with epsilon
             #   W[W==epsilon]=0 
             #   H[H==epsilon]=0
-            return error, W, H, toc
+            return error, W, H, toc, cnt
 
-    return error, W, H, toc
+    return error, W, H, toc, cnt
 
 #------------------------------------
 #  NMF algorithm proposed version
- 
-def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False):
+
+def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, use_LeeS=True, print_it=100, delta=np.Inf):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -142,7 +167,17 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         number of inner loops
     tol: float
         stopping criterion, algorithm stops if error<tol.
-    
+    use_LeeS: bool
+        if True, the majorant is the elementwise maximum between the proposed majorant and Lee and Seung majorant.
+    print_it: int
+        if verbose is true, sets the number of iterations between each print.
+        default: 100
+    delta: float
+        relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
+        A good value empirically: 0.4
+        default: np.Inf (no dynamic stopping)
+
+
     Returns
     -------
     err : darray
@@ -158,12 +193,18 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
     
     W = W0.copy()
     H = H0.copy()
-    gamma = 1.9
+    # TODO: Discuss
+    if use_LeeS:
+        gamma = 1#1.9
+    else:
+        gamma = 1.9
     error_norm = np.prod(V.shape)
     error = [la.norm(V-W.dot(H))/error_norm]
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
+    cnt = []
+
     if verbose:
         print("\n--------- MU proposed running ----------")
 
@@ -171,41 +212,67 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         
         # FIXED W ESTIMATE H
         A1 = W.T.dot(W)
-        Hess1 = lambda X: A1.dot(X)
-        B1 = W.T.dot(V)
-        aux_H = auxiliary(Hess1, B1, H)   
+        B1 = W.T@V
+        sqrtB1 =np.sqrt(B1)
+        aux_H = sqrtB1/A1.dot(sqrtB1)        
+        inner_change_0 = 1
+        inner_change_l = np.Inf
         for ih in range(NbIter_inner):
-            H =  np.maximum(H + gamma*aux_H*(B1 - Hess1(H)), epsilon)
-            # ii = np.all((H>=0))
-            # if ~ii:
-            #     print('algo stop at '+str(k))
-            #     return err, H, W
-            
+            A1H = A1.dot(H)
+            # TODO: HELP QUYEN DEBUG
+            if use_LeeS:
+                aux_H_used = np.maximum(aux_H, H/A1H)
+            else:
+                aux_H_used = aux_H
+            deltaH =  np.maximum(gamma*aux_H_used*(B1 - A1H), epsilon-H)
+            H = H + deltaH
+            if ih==0:
+                inner_change_0 = np.linalg.norm(deltaH)**2
+            else:
+                inner_change_l = np.linalg.norm(deltaH)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+        cnt.append(ih+1)
+
         # FIXED H ESTIMATE W
         A2 = H.dot(H.T)
-        Hess2 = lambda X: X.dot(A2)
-        B2 = V.dot(H.T)
-        aux_W =  auxiliary(Hess2, B2, W) 
+        B2 = V@H.T
+        sqrtB2 = np.sqrt(B2)
+        aux_W = sqrtB2/sqrtB2.dot(A2)    
+        inner_change_0 = 1
+        inner_change_l = np.Inf
         for iw in range(NbIter_inner):
-            # Q: outside loop?
-            W = np.maximum(W + gamma*aux_W*(B2 - Hess2(W)), epsilon)
+            WA2 = W.dot(A2)
+            if use_LeeS:
+                aux_W_used = np.maximum(aux_W, W/WA2)
+            else:
+                aux_W_used = aux_W
+            deltaW = np.maximum(gamma*aux_W_used*(B2 - WA2), epsilon-W)
+            W = W + deltaW
+            if iw==0:
+                inner_change_0 = np.linalg.norm(deltaW)**2
+            else:
+                inner_change_l = np.linalg.norm(deltaW)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+        cnt.append(iw+1)
                
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
         error.append(err)
         toc.append(time.time() - tic)
         if verbose:
-            if k%100==0:
+            if k%print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
         # Check if the error is smalle enough to stop the algorithm 
         if (error[-1] <tol):            
             print('algo stop at iteration =  '+str(k))
-            return error, W, H
+            return error, W, H, toc, cnt
             
         
-    return error, W, H 
+    return error, W, H, toc, cnt
 
 ###------ define the SPD matrix that satisfies the auxiliary function
-
+# TODO: remove, not used anymore
 def auxiliary(Hess, B, X):
     """
     Define the SPD matrix A that satisfies the majoration condition for psi that has Hess operator of hessian 
@@ -247,7 +314,7 @@ def auxiliary(Hess, B, X):
 
 ################## Gradient descent method
 
-def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False):
+def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf):
     
     """"
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -290,45 +357,66 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbo
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
+    cnt = []
+
     if verbose:
         print("\n--------- Gradient Descent running ----------")
      
     #inner_iter_total = 0 
-    
+    gamma = 1.9
+
     for k in range(NbIter):
         # FIXED W ESTIMATE H
         Aw = W.T.dot(W)      
         normAw = la.norm(Aw,2)
         WtV = W.T.dot(V)
+        inner_change_0 = 1
+        inner_change_l = np.Inf
         for ih in range(NbIter_inner):          
-            H =  np.maximum(H + (1.9/normAw)*(WtV - Aw@H),epsilon)
-        #inner_iter_total +=NbIter_inner
+            deltaH =  np.maximum((gamma/normAw)*(WtV - Aw@H),epsilon-H)
+            H = H + deltaH
+            if ih==0:
+                inner_change_0 = np.linalg.norm(deltaH)**2
+            else:
+                inner_change_l = np.linalg.norm(deltaH)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+        cnt.append(ih+1)
           
         # FIXED H ESTIMATE W
         Ah = H.dot(H.T)
         normAh = la.norm(Ah,2)
         VHt = V.dot(H.T)
+        inner_change_0 = 1
+        inner_change_l = np.Inf
         for iw in range(NbIter_inner):       
-            W = np.maximum(W + (1.9/normAh)*(VHt - W@Ah),epsilon)
-        #inner_iter_total +=NbIter_inner
+            deltaW = np.maximum((1.9/normAh)*(VHt - W@Ah),epsilon-W)
+            W = W + deltaW
+            if iw==0:
+                inner_change_0 = np.linalg.norm(deltaW)**2
+            else:
+                inner_change_l = np.linalg.norm(deltaW)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+        cnt.append(iw+1)
         
         # compute the error 
         err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
         error.append(err)
         toc.append(time.time()-tic)
         if verbose:
-            if k%100==0:
+            if k%print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
 
         # Check if the error is small enough to stop the algorithm 
         if (error[-1] <tol):
         
-            return error, W, H, toc#, (k+inner_iter_total)
+            return error, W, H, toc, cnt
             
         
     if verbose:
         print("Loss at iteration {}: {}".format(k+1,error[-1]))
-    return error, W, H, toc #, (k+inner_iter_total)
+    return error, W, H, toc, cnt
 
 
 
@@ -342,7 +430,7 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbo
 
  
 
-def OGM_H(WtV, H, Aw, L, nb_inner, epsilon):
+def OGM_H(WtV, H, Aw, L, nb_inner, epsilon, delta, return_inner=False):
         # V≈WH, W≥O, H≥0
         # updates H        
         
@@ -350,18 +438,26 @@ def OGM_H(WtV, H, Aw, L, nb_inner, epsilon):
         alpha     = 1
         #Aw = W.T.dot(W)
         #L = la.norm(Aw,2)
-         
+        inner_change_0 = 1
+        inner_change_l = np.Inf
         for ih in range(nb_inner):
             H_ = H.copy()
             alpha_ = alpha 
-            H = np.maximum(Y+L*(WtV - Aw.dot(Y)),epsilon) # projection entrywise on R+ of gradient step
+            deltaH = np.maximum(L*(WtV - Aw.dot(Y)),epsilon-Y) # projection entrywise on R+ of gradient step
+            H = Y + deltaH
             alpha = (1+np.sqrt(4*alpha**2+1))/2  # Nesterov momentum parameter           
             Y = H + ((alpha-1)/alpha_)*(H-H_)
-            
-        
+            if ih==0:
+                inner_change_0 = np.linalg.norm(deltaH)**2
+            else:
+                inner_change_l = np.linalg.norm(deltaH)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+        if return_inner:
+            return H, ih+1
         return H
 
-def OGM_W(VHt,W, Ah, L, nb_inner,epsilon):
+def OGM_W(VHt,W, Ah, L, nb_inner, epsilon, delta, return_inner=False):
         # V≈WH, W≥O, H≥0
         # updates W
         # eps: threshold for stopping criterion
@@ -370,17 +466,28 @@ def OGM_W(VHt,W, Ah, L, nb_inner,epsilon):
         #L = la.norm(Ah,2)
         alpha = 1
         Y = W.copy()
+        inner_change_0 = 1
+        inner_change_l = np.Inf
         for iw in range(nb_inner):
             W_ = W.copy()
             alpha_ = alpha 
-            W = np.maximum(Y + L*(VHt - Y.dot(Ah)),epsilon)
-            alpha = (1+np.sqrt(4*alpha**2+1))/2  # Nesterov momentum parameter           
+            deltaW = np.maximum(L*(VHt - Y.dot(Ah)),epsilon-Y)
+            W = Y + deltaW
+            alpha = (1+np.sqrt(4*alpha**2+1))/2  # Nesterov momentum parameter          
             Y = W + ((alpha-1)/alpha_)*(W-W_)
+            if iw==0:
+                inner_change_0 = np.linalg.norm(deltaW)**2
+            else:
+                inner_change_l = np.linalg.norm(deltaW)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+        if return_inner:
+            return W, iw+1
         return W
             
         
          
-def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose=False):
+def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
@@ -388,6 +495,7 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
+    cnt = []
 
     if verbose:
         print("\n--------- NeNMF running ----------")
@@ -398,26 +506,29 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose
         Aw = W.T.dot(W)
         Lw = 1/la.norm(Aw,2)
         WtV = W.T@V
-        H     = OGM_H(WtV, H, Aw, Lw, nb_inner,epsilon)
-        
+        H, cnt_inner = OGM_H(WtV, H, Aw, Lw, nb_inner,epsilon, delta, return_inner=True)
+        cnt.append(cnt_inner)
+
         Ah = H.dot(H.T)
         Lh = 1/la.norm(Ah,2)
         VHt = V@H.T
-        W     = OGM_W(VHt, W, Ah, Lh, nb_inner,epsilon)
+        W, cnt_inner = OGM_W(VHt, W, Ah, Lh, nb_inner,epsilon, delta, return_inner=True)
+        cnt.append(cnt_inner)
+
         err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
         error.append(err)
         toc.append(time.time()-tic)
         if verbose:
-            if it%100==0:
+            if it%print_it==0:
                 print("Error at iteration {}: {}".format(it+1,err))
         it+=1
         
     if verbose:
         print("Loss at iteration {}: {}".format(it+1,error[-1]))
-    return error, W, H, toc
+    return error, W, H, toc, cnt
 
 
-def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1e-8, verbose=False, use_LeeS=True):
+def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_LeeS=True, delta=np.Inf):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
@@ -425,6 +536,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
     Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
     tic = time.time()
+    cnt_inner = []
     if verbose:
         print("\n--------- MU extrapolated proposed running ----------")
     it = 0
@@ -435,34 +547,37 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         A1 = W.T.dot(W)
         B1 = W.T@V
         sqrtB1 =np.sqrt(B1)
-        Lw = sqrtB1/(A1.dot(sqrtB1)+1e-10)        
+        Lw = sqrtB1/A1.dot(sqrtB1)        
         if use_LeeS:
             Lw = np.maximum(Lw, 1/la.norm(A1,2))
         
         #Lw = 1/la.norm(Aw,2)
-        H     = OGM_H(B1, H, A1, Lw, nb_inner,epsilon)
+        H, out_cnt = OGM_H(B1, H, A1, Lw, nb_inner, epsilon, delta, return_inner=True)
+        cnt_inner.append(out_cnt)
         
         # fixed h estimate w
         
         A2 = H.dot(H.T)
         B2 = V@H.T
         sqrtB2 = np.sqrt(B2)
-        Lh = sqrtB2/(sqrtB2.dot(A2)+1e-10)        
+        # TODO: removed epsilon in denom OK?
+        Lh = sqrtB2/sqrtB2.dot(A2)    
         if use_LeeS:
             Lh = np.maximum(Lh,1/la.norm(A2,2))
 
-        W = OGM_W(B2, W, A2, Lh, nb_inner, epsilon)
+        W, out_cnt = OGM_W(B2, W, A2, Lh, nb_inner, epsilon, delta, return_inner=True)
+        cnt_inner.append(out_cnt)
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
         error.append(err)
         toc.append(time.time()-tic)
         if verbose:
-            if it%100==0:
+            if it%print_it==0:
                 print("Error at iteration {}: {}".format(it+1,err))
         it += 1
     
     if verbose:
         print("Loss at iteration {}: {}".format(it+1,error[-1]))
-    return error, W, H, toc
+    return error, W, H, toc, cnt_inner
 
 
 
@@ -560,19 +675,21 @@ if __name__ == '__main__':
         
         
         NbIter_inner= 20
-        tol = 1e-8
-        
+        tol = -1
+        verbose=True
+        delta=0.3
+
         time_start0 = time.time()
-        error0, W0, H0 = NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol)
+        error0, W0, H0, toc0, cnt0 = NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol, verbose=verbose, delta=delta)
         time0 = time.time() - time_start0
         Error0[s] = error0[-1] 
         NbIterStop0[s] = len(error0)
         
       
         
+        error4, W4, H4, toc4, cnt4  = NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, verbose=verbose, use_LeeS=True, delta=delta)
         time_start1 = time.time()
-        error1, W1, H1  = NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner)
-        #error1, W1, H1 = NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol)
+        error1, W1, H1, toc1, cnt1 = NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, verbose=verbose, use_LeeS=False, delta=delta)
         time1 = time.time() - time_start1
         Error1[s] = error1[-1] 
         NbIterStop1[s] = len(error1)
@@ -581,14 +698,14 @@ if __name__ == '__main__':
         
          
         time_start2 = time.time()
-        error2, W2, H2  = Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol)
+        error2, W2, H2, toc2, cnt2  = Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol, verbose=verbose, delta=delta)
         time2 = time.time() - time_start1
         Error2[s] = error2[-1] 
         NbIterStop2[s] = len(error2)
         
         
         time_start3 = time.time()
-        error3, W3, H3  = NeNMF(V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter)
+        error3, W3, H3, toc3, cnt3  = NeNMF(V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, verbose=verbose, delta=delta)
         time3 = time.time() - time_start3
         Error3[s] = error3[-1]
         NbIterStop3[s] = len(error3)
@@ -598,6 +715,7 @@ if __name__ == '__main__':
     
     plt.semilogy(error0, label = 'Lee and Seung', linewidth = 3)
     plt.semilogy(error1,'--', label = 'Pham et al', linewidth = 3)
+    plt.semilogy(error4,'--', label = 'NeNMF Pham et al', linewidth = 3)
     plt.semilogy(error2,'--', label = 'Gradient descent', linewidth = 3)   
     plt.semilogy(error3,'--', label = 'NeNMF', linewidth = 3)
     plt.title('Objective function values versus iterations', fontsize=14)# for different majorizing functions')
@@ -605,8 +723,19 @@ if __name__ == '__main__':
     plt.ylabel(r'$\log\left( || V - WH || \right)$', fontsize=14)
     plt.legend(fontsize = 14)
     plt.grid(True)
-    
-    
+
+    # Moving averages
+    plt.figure(figsize=(6,3),tight_layout = {'pad': 0})
+    k=10
+    plt.plot(np.convolve(cnt0, np.ones(k)/k, mode='valid')[::3])
+    plt.plot(np.convolve(cnt1, np.ones(k)/k, mode='valid')[::3])
+    plt.plot(np.convolve(cnt2, np.ones(k)/k, mode='valid')[::3])
+    plt.plot(np.convolve(cnt3, np.ones(k)/k, mode='valid')[::3])
+    plt.plot(np.convolve(cnt4, np.ones(k)/k, mode='valid')[::3])
+    plt.legend(["LeeSeung", "Proposed", "GD", "NeNMF", "Proposed NeNMF"])
+
+
+    plt.show() 
     
     print('Lee and Seung: Error = '+str(np.mean(Error0)) + '; NbIter = '  + str(np.mean(NbIterStop0)) + '; Elapsed time = '+str(time0)+ '\n')
     print('Pham et al: Error = '+str(np.mean(Error1)) + '; NbIter = '  + str(np.mean(NbIterStop1)) + '; Elapsed time = '+str(time1)+ '\n')

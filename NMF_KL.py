@@ -79,9 +79,12 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
         the maximum number of iterations.
     NbIter_inner: int
         number of inner loops
+    print_it: int
+        if verbose is true, sets the number of iterations between each print.
+        default: 100
     delta: float
         relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
-        A good value empirically: 0.01
+        A good value empirically: 0.4
         default: np.Inf (no dynamic stopping)
 
     Returns
@@ -104,6 +107,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
     H = Hini.copy()    
     WH = W.dot(H)
     crit = [compute_error(V, WH, ind0, ind1)]
+    cnt = []
   
     if legacy:
         epsilon=0
@@ -127,7 +131,8 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
                 inner_change_l = np.linalg.norm(deltaW)**2
             if inner_change_l < delta*inner_change_0:
                 break
-              
+        cnt.append(l+1)
+
         # FIXED W ESTIMATE H
         
         sumW = np.sum(W, axis = 0)[:, None]
@@ -143,7 +148,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
                 inner_change_l = np.linalg.norm(deltaH)**2
             if inner_change_l < delta*inner_change_0:
                 break
-              
+        cnt.append(l+1)   
  
         
         # compute the error 
@@ -157,11 +162,11 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
             if (crit[k] <= tol):
                 if verbose:
                     print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-                return crit, W, H, tol 
+                return crit, W, H, tol, cnt
         
     if verbose:
         print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-    return crit, W, H, toc 
+    return crit, W, H, toc, cnt
     
 
 
@@ -217,6 +222,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
     WH = W.dot(H)
  
     crit = [compute_error(V, WH, ind0, ind1)]
+    cnt = []
      
     for k in range(NbIter):
         
@@ -233,6 +239,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
                 inner_change_l = np.linalg.norm(deltaW)**2
             if inner_change_l < delta*inner_change_0:
                 break
+        cnt.append(l)
               
         # FIXED W ESTIMATE H
         
@@ -249,6 +256,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
                 inner_change_l = np.linalg.norm(deltaH)**2
             if inner_change_l < delta*inner_change_0:
                 break
+        cnt.append(l)
 
         # Here is the main difference with Lee and Sung: normalization 
         # Should not change anything however...
@@ -265,12 +273,12 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
             if (crit[k] <= tol):
                 if verbose:
                     print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-                return  crit,  W, H, toc
+                return  crit, W, H, toc, cnt
     
     if verbose:
         print("Loss at iteration {}: {}".format(k+1,crit[-1]))
  
-    return  crit, W, H, toc
+    return  crit, W, H, toc, cnt
 
 
 #####-------------------------------------------------------------
@@ -286,7 +294,7 @@ def grad_H(V, W, H):
 def grad_W(V, W, H):
     return (V/(W.dot(H))-1).dot(H.T)
 
-def OGM_H(V,W,H, L, nb_inner, epsilon, delta=np.Inf):
+def OGM_H(V,W,H, L, nb_inner, epsilon, delta=np.Inf, return_inner=True):
         # V≈WH, W≥O, H≥0
         # updates H        
         
@@ -298,20 +306,22 @@ def OGM_H(V,W,H, L, nb_inner, epsilon, delta=np.Inf):
         for ih in range(nb_inner):
             H_ = H.copy()
             alpha_ = alpha          
-            H =  np.maximum(Y + L*grad_H(V, W, Y), epsilon)# projection entrywise on R+ of gradient step
+            deltaH =  np.maximum(L*grad_H(V, W, Y), epsilon-Y)# projection entrywise on R+ of gradient step
+            H = Y + deltaH
             alpha = (1+np.sqrt(4*alpha**2+1))/2  # Nesterov momentum parameter       
-            deltaY = ((alpha-1)/alpha_)*(H-H_)    
-            Y = H + deltaY
+            Y = H +((alpha-1)/alpha_)*(H-H_)
             if ih==0:
-                inner_change_0 = np.linalg.norm(deltaY)**2
+                inner_change_0 = np.linalg.norm(deltaH)**2
             else:
-                inner_change_l = np.linalg.norm(deltaY)**2
+                inner_change_l = np.linalg.norm(deltaH)**2
             if inner_change_l < delta*inner_change_0:
                 break
-        
+                
+        if return_inner:
+            return H, ih+1
         return H
 
-def OGM_W(V,W,H, L, nb_inner, epsilon, delta=np.Inf):
+def OGM_W(V,W,H, L, nb_inner, epsilon, delta=np.Inf, return_inner=True):
         # V≈WH, W≥O, H≥0
         # updates W
         # eps: threshold for stopping criterion
@@ -323,17 +333,19 @@ def OGM_W(V,W,H, L, nb_inner, epsilon, delta=np.Inf):
         for iw in range(nb_inner):
             W_ = W.copy()
             alpha_ = alpha          
-            W =  np.maximum(Y + L*grad_W(V,Y,H), epsilon)# projection entrywise on R+ of gradient step
+            deltaW =  np.maximum(L*grad_W(V,Y,H), epsilon-Y)# projection entrywise on R+ of gradient step
+            W = Y + deltaW
             alpha = (1+np.sqrt(4*alpha**2+1))/2  # Nesterov momentum parameter       
-            deltaY = ((alpha-1)/alpha_)*(W-W_)    
-            Y = W + deltaY
+            Y = W +((alpha-1)/alpha_)*(W-W_)
             if iw==0:
-                inner_change_0 = np.linalg.norm(deltaY)**2
+                inner_change_0 = np.linalg.norm(deltaW)**2
             else:
-                inner_change_l = np.linalg.norm(deltaY)**2
+                inner_change_l = np.linalg.norm(deltaW)**2
             if inner_change_l < delta*inner_change_0:
                 break
-        
+
+        if return_inner:
+            return W, iw+1
         return W
 
          
@@ -352,6 +364,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
     #WH = W.dot(H)
     
     crit = [compute_error(V, W.dot(H), ind0, ind1)]
+    cnt = []
      
      
     for  k in range(NbIter):
@@ -360,12 +373,14 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
             Lw = 1/la.norm(W, 2)**2
         else:
             Lw = stepsize[0]
-        H     = OGM_H(V, W, H, Lw, nb_inner, epsilon, delta) 
+        H, cnt = OGM_H(V, W, H, Lw, nb_inner, epsilon, delta) 
+        cnt.append(cnt)
         if not stepsize:
             Lh = 1/la.norm(H, 2)**2
         else:
             Lh = stepsize[1]
-        W     = OGM_W(V, W, H, Lh, nb_inner, epsilon, delta)
+        W, cnt = OGM_W(V, W, H, Lh, nb_inner, epsilon, delta)
+        cnt.append(cnt)
         
         crit.append(compute_error(V, W.dot(H), ind0, ind1))
         toc.append(time.time()-tic)
@@ -376,11 +391,11 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
             if (crit[k] <= tol):
                 if verbose:
                     print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-                return crit,  W, H, toc
+                return crit,  W, H, toc, cnt
             
     if verbose:
         print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-    return crit, W, H, toc
+    return crit, W, H, toc, cnt
     
 
 
@@ -443,7 +458,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
 
     # Precomputations
     if alpha_strategy=="data_sum":
-        print('debug, chosing data strategy')
+        print('debug, chosing data strategy normalized')
         alphaH = np.sum(V, axis = 0)[None,:]/H.shape[1]
         alphaW = np.sum(V, axis = 1)[:, None]/W.shape[0]
     elif not type(alpha_strategy)==str:
@@ -454,7 +469,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
         print('debug, chosing factor strategy')
 
     crit = [compute_error(V, WH, ind0, ind1)]
-    cnt_inner = []
+    cnt = []
     
     for k in range(NbIter):
         
@@ -462,7 +477,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
         # FIXED H ESTIMATE W     
         sum_H = np.sum(H, axis = 1)[None,:]
         if alpha_strategy=="factors_sum":
-            alphaW = np.sum(W, axis=1)[:,None]
+            alphaW = np.sum(W, axis=1)[:,None]/W.shape[0] #TODO discuss this
         inner_change_0 = 1
         inner_change_l = np.Inf
         # TODO: repeat vs broadcasting? 
@@ -479,14 +494,13 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
             else:
                 inner_change_l = np.linalg.norm(deltaW)**2
             if inner_change_l < delta*inner_change_0:
-                cnt_inner.append(iw+1)
                 break
-        cnt_inner.append(iw+1)
+        cnt.append(iw+1)
             
         # FIXED W ESTIMATE H        
         sum_W = np.sum(W, axis = 0)[:, None]          
         if alpha_strategy=="factors_sum":
-            alphaH = np.sum(H, axis=0)[None,:]
+            alphaH = np.sum(H, axis=0)[None,:]/H.shape[1] #TODO
         inner_change_0 = 1
         inner_change_l = np.Inf
         aux_H = alphaH/(np.sum(np.sqrt(sum_W))*np.repeat(np.sqrt(sum_W),H.shape[1], axis=1) )
@@ -502,9 +516,8 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
             else:
                 inner_change_l = np.linalg.norm(deltaH)**2
             if inner_change_l < delta*inner_change_0:
-                cnt_inner.append(ih+1)
                 break
-        cnt_inner.append(ih+1)
+        cnt.append(ih+1)
 
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
@@ -517,10 +530,10 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
             if (crit[k] <= tol):
                 if verbose:
                     print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-                return crit,  W, H, toc, cnt_inner
+                return crit,  W, H, toc, cnt
     if verbose:
         print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-    return crit, W, H, toc, cnt_inner
+    return crit, W, H, toc, cnt
 
 
 
@@ -544,11 +557,12 @@ if __name__ == '__main__':
     WH = Worig.dot(Horig)
    
     # Parameters
-    nb_inner = 10# nb of algo iterations
+    nb_inner = 50# nb of algo iterations
     NbIter = 3000
     
     # adding noise to the observed data
     sigma =  1e-6
+    delta = 0.0
 
     # Printing
     verbose=True
@@ -582,12 +596,8 @@ if __name__ == '__main__':
         epsilon = 1e-8
  
         # Beta divergence 
-        crit0, W0, H0, toc0 = Lee_Seung_KL(V, Wini, Hini, nb_inner=nb_inner,             
-            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=0.4)
-        time0 = toc0[-1] 
-        crit0 = np.array(crit0)
-        Error0[s] = crit0[-1] 
-        NbIterStop0[s] = len(crit0)
+        crit0, W0, H0, toc0, cnt0 = Lee_Seung_KL(V, Wini, Hini, nb_inner=nb_inner,             
+            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=delta)
           
          
         #crit1, W1, H1, toc1  = Fevotte_KL(V, Wini, Hini, nb_inner=nb_inner, 
@@ -609,29 +619,15 @@ if __name__ == '__main__':
         #NbIterStop2[s] = len(crit2)
         
          
-        crit3, W3, H3, toc3, cnt_inner  = Proposed_KL(V, Wini, Hini, nb_inner=nb_inner, 
-            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=0.4, alpha_strategy="factors_sum")
-        time3 = toc3[-1]     
-        crit3 = np.array(crit3)
-        Error3[s] = crit3[-1] 
-        NbIterStop3[s] = len(crit3)
-        print(cnt_inner)
-        
-        print('Lee and Seung: Crit = ' +str(crit0[-1]) + '; NbIter = '  + str(NbIterStop0[s]) + '; Elapsed time = '+str(time0)+ '\n')
-        #print('Fevotte et al: Crit = ' + str(crit1[-1]) + '; NbIter = '  + str(NbIterStop1[s]) + '; Elapsed time = '+str(time1)+ '\n')
-        #print('NeNMF: Crit = '+ str(crit2[-1]) + '; NbIter = '  + str(NbIterStop2[s]) + '; Elapsed time = '+str(time2)+ '\n')
-        print('Pham et al: Crit = '+ str(crit3[-1]) + '; NbIter = '  + str(NbIterStop3[s]) + '; Elapsed time = '+str(time3)+ '\n')
+        crit3, W3, H3, toc3, cnt3  = Proposed_KL(V, Wini, Hini, nb_inner=nb_inner, 
+            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=delta, alpha_strategy="factors_sum", print_it=100)
         
         
     
      ## ------------------Display objective functions
-    cst = 1e-12 
-     
     fig = plt.figure(figsize=(6,3),tight_layout = {'pad': 0})    
-    plt.semilogy(crit0 + cst, label = 'Lee and Seung', linewidth = 3)
-    #plt.semilogy(crit1 + cst,'--', label = 'Fevotte et al', linewidth = 3)
-    #plt.semilogy(crit2 + cst,'--', label = 'NeNMF', linewidth = 3)
-    plt.semilogy(crit3 + cst, label = 'Pham et al', linewidth = 3)
+    plt.semilogy(crit0, label = 'Lee and Seung', linewidth = 3)
+    plt.semilogy(crit3, label = 'Pham et al', linewidth = 3)
 
     plt.title('Objective function values versus iterations', fontsize=14)# for different majorizing functions')
     plt.xlabel('Iteration', fontsize=14)
@@ -642,9 +638,25 @@ if __name__ == '__main__':
     plt.savefig(results_path+'.eps', format='eps')       
     plt.legend(fontsize = 14)  
     
-    
+    plt.figure(figsize=(6,3),tight_layout = {'pad': 0})    
+    plt.semilogy(toc0, crit0, label = 'Lee and Seung', linewidth = 3)
+    plt.semilogy(toc3, crit3, label = 'Pham et al', linewidth = 3)
+    plt.title('Objective function values versus time', fontsize=14)# for different majorizing functions')
+    plt.xlabel('Iteration', fontsize=14)
+    plt.ylabel(r'$\log\left( || V - WH || \right)$', fontsize=14)
+    plt.legend(fontsize = 14)
+    plt.grid(True)
+    results_path = 'Results/beta_divergence' 
+    plt.savefig(results_path+'.eps', format='eps')       
+    plt.legend(fontsize = 14)  
      
+    plt.figure(figsize=(6,3),tight_layout = {'pad': 0})
+    k=10
+    plt.plot(np.convolve(cnt0, np.ones(k)/k, mode='valid')[::3])
+    plt.plot(np.convolve(cnt3, np.ones(k)/k, mode='valid')[::3])
+    plt.legend(["LeeSeung", "Proposed"])
 
+    plt.show()
 
     
         

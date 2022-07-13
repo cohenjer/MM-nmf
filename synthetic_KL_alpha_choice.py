@@ -15,8 +15,8 @@ from shootout.methods.plotters import plot_speed_comparison
 plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["alpha_1", "alpha_data", "alpha_factors"]
-nb_seeds = 20
+algs = ["alpha_1", "alpha_data", "alpha_factors", "alpha_1.8", "alpha_2", "alpha_2.5"]
+nb_seeds = 10
 name = "KL_run_alpha_comparisons"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 nb_seeds=nb_seeds, # Change this to >0 to run experiments
@@ -45,12 +45,15 @@ def one_run(m=100,n=100,r=10,sigma=0, NbIter=3000,tol=0,NbIter_inner=10, verbose
     # TODO: compute SNR/use SNR to set up noise
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
-    error1, W1, H1, toc1, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy=1)
-    error2, W2, H2, toc2, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="data_sum")
-    error3, W3, H3, toc3, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="factors_sum")
+    error1, _, _, toc1, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy=1)
+    error2, _, _, toc2, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="data_sum")
+    error3, _, _, toc3, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="factors_sum")
+    error4, _, _, toc4, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy=1.8)
+    error5, _, _, toc5, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy=2)
+    error6, _, _, toc6, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy=2.5)
 
-    return {"errors" : [error1, error2, error3], 
-            "timings" : [toc1, toc2, toc3],
+    return {"errors" : [error1, error2, error3, error4, error5, error6], 
+            "timings" : [toc1, toc2, toc3, toc4, toc5, toc6],
             }
 
 
@@ -61,7 +64,7 @@ df = pd.read_pickle("Results/"+name)
 nb_seeds = df["seed_idx"].max()+1 # get nbseed from data
 
 # Using shootout for plotting and postprocessing
-thresh = np.logspace(-3,-8,50) 
+thresh = np.logspace(-1,-4,50) 
 scores_time, scores_it, timings, iterations = find_best_at_all_thresh(df,thresh, nb_seeds)
 
 # Making a convergence plot dataframe
