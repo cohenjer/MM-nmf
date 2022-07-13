@@ -155,8 +155,12 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
         # Check if the error is small enough to stop the algorithm 
         if tol:
             if (crit[k] <= tol):
+                if verbose:
+                    print("Loss at iteration {}: {}".format(k+1,crit[-1]))
                 return crit, W, H, tol 
         
+    if verbose:
+        print("Loss at iteration {}: {}".format(k+1,crit[-1]))
     return crit, W, H, toc 
     
 
@@ -259,8 +263,12 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
 
         if tol: 
             if (crit[k] <= tol):
+                if verbose:
+                    print("Loss at iteration {}: {}".format(k+1,crit[-1]))
                 return  crit,  W, H, toc
     
+    if verbose:
+        print("Loss at iteration {}: {}".format(k+1,crit[-1]))
  
     return  crit, W, H, toc
 
@@ -366,8 +374,12 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
         if tol:
             if (crit[k] <= tol):
+                if verbose:
+                    print("Loss at iteration {}: {}".format(k+1,crit[-1]))
                 return crit,  W, H, toc
             
+    if verbose:
+        print("Loss at iteration {}: {}".format(k+1,crit[-1]))
     return crit, W, H, toc
     
 
@@ -377,8 +389,9 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 ############################################################################
 
     
-def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_inner=10,
-                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=True, delta=np.Inf):
+def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
+                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=True, delta=np.Inf,
+                alpha_strategy="data_sum"):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -402,6 +415,12 @@ def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_in
         relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
         A good value empirically: 0.01
         default: np.Inf (no dynamic stopping)
+    alpha_strategy: string or float
+        choose the strategy to fix alpha_n in the majorant computation. Three choices are implemented:
+        - "data_sum": alpha_n is chosen as the sum of data rows (for H update) and data columns (for W update)
+        - "factors_sum": alpha_n is chosen as the sum of factors columns
+        - a float, e.g. alpha_strategy=1, to fix alpha to a specific constant.
+ 
     
     Returns
     -------
@@ -423,11 +442,17 @@ def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_in
     WH = W.dot(H)
 
     # Precomputations
-    if (sumH is None) or (sumW is None):
-        # Using noisy data to compute sums
-        sumH = (np.sum(V, axis = 0))[None,:]   
-        sumW = (np.sum(V, axis = 1))[:, None]   
-    
+    if alpha_strategy=="data_sum":
+        print('debug, chosing data strategy')
+        alphaH = np.sum(V, axis = 0)[None,:]/H.shape[1]
+        alphaW = np.sum(V, axis = 1)[:, None]/W.shape[0]
+    elif not type(alpha_strategy)==str:
+        print('debug, chosing constant strategy')
+        alphaH = alpha_strategy
+        alphaW = alpha_strategy
+    else:
+        print('debug, chosing factor strategy')
+
     crit = [compute_error(V, WH, ind0, ind1)]
     cnt_inner = []
     
@@ -436,10 +461,12 @@ def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_in
         
         # FIXED H ESTIMATE W     
         sum_H = np.sum(H, axis = 1)[None,:]
+        if alpha_strategy=="factors_sum":
+            alphaW = np.sum(W, axis=1)[:,None]
         inner_change_0 = 1
         inner_change_l = np.Inf
         # TODO: repeat vs broadcasting? 
-        aux_W = sumW/(np.sum(sum_H)*W.shape[0]*np.repeat(np.sqrt(sum_H),W.shape[0], axis=0))
+        aux_W = alphaW/(np.sum(np.sqrt(sum_H))*np.repeat(np.sqrt(sum_H),W.shape[0], axis=0))
         for iw in range(nb_inner):       
             if use_LeeS:
                 deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
@@ -458,9 +485,11 @@ def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_in
             
         # FIXED W ESTIMATE H        
         sum_W = np.sum(W, axis = 0)[:, None]          
+        if alpha_strategy=="factors_sum":
+            alphaH = np.sum(H, axis=0)[None,:]
         inner_change_0 = 1
         inner_change_l = np.Inf
-        aux_H = sumH/(np.sum(sum_W)*H.shape[1]*np.repeat(np.sqrt(sum_W),H.shape[1], axis=1) )
+        aux_H = alphaH/(np.sum(np.sqrt(sum_W))*np.repeat(np.sqrt(sum_W),H.shape[1], axis=1) )
         for ih in range(nb_inner):
             if use_LeeS:
                 deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
@@ -486,7 +515,11 @@ def Proposed_KL(V, Wini, Hini, sumH=None, sumW=None, ind0=None, ind1=None, nb_in
         # Check if the error is small enough to stop the algorithm 
         if tol:
             if (crit[k] <= tol):
+                if verbose:
+                    print("Loss at iteration {}: {}".format(k+1,crit[-1]))
                 return crit,  W, H, toc, cnt_inner
+    if verbose:
+        print("Loss at iteration {}: {}".format(k+1,crit[-1]))
     return crit, W, H, toc, cnt_inner
 
 
@@ -518,7 +551,7 @@ if __name__ == '__main__':
     sigma =  1e-6
 
     # Printing
-    verbose=False
+    verbose=True
      
     if sigma == 0:
         NbSeed = 1 # if without noise nb of noise = 0
@@ -535,10 +568,6 @@ if __name__ == '__main__':
     NbIterStop2 = np.zeros(NbSeed)
     NbIterStop3 = np.zeros(NbSeed)
 
-    # Why ??
-    sumH = None# (np.sum(Vorig, axis = 0))[None,:]   
-    sumW = None#(np.sum(Vorig, axis = 1))[:, None]   
-        
     for  s in range(NbSeed): #[NbSeed-1]:#
         print('-------Noise with random seed =  ' +str(s)+'---------') 
         np.random.seed(s)
@@ -561,12 +590,12 @@ if __name__ == '__main__':
         NbIterStop0[s] = len(crit0)
           
          
-        crit1, W1, H1, toc1  = Fevotte_KL(V, Wini, Hini, nb_inner=nb_inner, 
-            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=0.4)
-        time1 = toc1[-1]  
-        crit1 = np.array(crit1)
-        Error1[s] = crit1[-1] 
-        NbIterStop1[s] = len(crit1)
+        #crit1, W1, H1, toc1  = Fevotte_KL(V, Wini, Hini, nb_inner=nb_inner, 
+            #epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=0.4)
+        #time1 = toc1[-1]  
+        #crit1 = np.array(crit1)
+        #Error1[s] = crit1[-1] 
+        #NbIterStop1[s] = len(crit1)
         
         
         #stepsize=[1e-5,1e-5]
@@ -580,8 +609,8 @@ if __name__ == '__main__':
         #NbIterStop2[s] = len(crit2)
         
          
-        crit3, W3, H3, toc3, cnt_inner  = Proposed_KL(V, Wini, Hini, sumH=sumH, sumW=sumW, nb_inner=nb_inner, 
-            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=0.4)
+        crit3, W3, H3, toc3, cnt_inner  = Proposed_KL(V, Wini, Hini, nb_inner=nb_inner, 
+            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=0.4, alpha_strategy="factors_sum")
         time3 = toc3[-1]     
         crit3 = np.array(crit3)
         Error3[s] = crit3[-1] 
@@ -589,7 +618,7 @@ if __name__ == '__main__':
         print(cnt_inner)
         
         print('Lee and Seung: Crit = ' +str(crit0[-1]) + '; NbIter = '  + str(NbIterStop0[s]) + '; Elapsed time = '+str(time0)+ '\n')
-        print('Fevotte et al: Crit = ' + str(crit1[-1]) + '; NbIter = '  + str(NbIterStop1[s]) + '; Elapsed time = '+str(time1)+ '\n')
+        #print('Fevotte et al: Crit = ' + str(crit1[-1]) + '; NbIter = '  + str(NbIterStop1[s]) + '; Elapsed time = '+str(time1)+ '\n')
         #print('NeNMF: Crit = '+ str(crit2[-1]) + '; NbIter = '  + str(NbIterStop2[s]) + '; Elapsed time = '+str(time2)+ '\n')
         print('Pham et al: Crit = '+ str(crit3[-1]) + '; NbIter = '  + str(NbIterStop3[s]) + '; Elapsed time = '+str(time3)+ '\n')
         
@@ -600,7 +629,7 @@ if __name__ == '__main__':
      
     fig = plt.figure(figsize=(6,3),tight_layout = {'pad': 0})    
     plt.semilogy(crit0 + cst, label = 'Lee and Seung', linewidth = 3)
-    plt.semilogy(crit1 + cst,'--', label = 'Fevotte et al', linewidth = 3)
+    #plt.semilogy(crit1 + cst,'--', label = 'Fevotte et al', linewidth = 3)
     #plt.semilogy(crit2 + cst,'--', label = 'NeNMF', linewidth = 3)
     plt.semilogy(crit3 + cst, label = 'Pham et al', linewidth = 3)
 

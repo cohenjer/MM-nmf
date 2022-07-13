@@ -15,23 +15,21 @@ from shootout.methods.plotters import plot_speed_comparison
 plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["Lee_Sung", "Proposed"]
-nb_seeds = 0
-name = "KL_run_delta-nodelta"
-@run_and_track(algorithm_names=algs, path_store="Results/", name_store=name, add_track="uniform",
+algs = ["alpha_1", "alpha_data", "alpha_factors"]
+nb_seeds = 20
+name = "KL_run_alpha_comparisons"
+@run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 nb_seeds=nb_seeds, # Change this to >0 to run experiments
                 m = [100],
                 n = [50],
                 r = [8],
                 #sigma = [0,1e-2,1], # for poisson
-                sigma = [1e-6],#,1e-3], # for uniform
-                NbIter_inner = [50],
-                delta=[0.5,0.25,0.15,0],
+                sigma = [1e-3],#,1e-3], # for uniform
+                NbIter_inner = [10],
+                delta=[0],
                 )
 def one_run(m=100,n=100,r=10,sigma=0, NbIter=3000,tol=0,NbIter_inner=10, verbose=True, show_it=1000, delta=0.4):
     # Fixed the signal 
-    # here it is dense, TODO: try sparse
-    # TODO: same init comparisons by copying function calls
     Worig = np.random.rand(m, r) 
     Horig = np.random.rand(r, n)  
     Vorig = Worig.dot(Horig)
@@ -41,23 +39,18 @@ def one_run(m=100,n=100,r=10,sigma=0, NbIter=3000,tol=0,NbIter_inner=10, verbose
     Wini = np.random.rand(m, r) #sparse.random(rV, cW, density=0.25).toarray() 
     
     # adding Poisson noise to the observed data
-    # TODO: discuss noise choice
     #N = np.random.poisson(sigma,size=Vorig.shape) # integers, should we scale?
     N = sigma*np.random.rand(m,n) # uniform, should we scale?
     V = Vorig + N
-
     # TODO: compute SNR/use SNR to set up noise
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
-    error0, W0, H0, toc0 = nmf_kl.Lee_Seung_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
-    #error1, W1, H1, toc1 = nmf_kl.Fevotte_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
-    error3, W3, H3, toc3, cnt = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
-    #error2, W2, H2, toc2 = nmf_kl.NeNMF_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol)
+    error1, W1, H1, toc1, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy=1)
+    error2, W2, H2, toc2, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="data_sum")
+    error3, W3, H3, toc3, _ = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="factors_sum")
 
-    return {"errors" : [error0, error3], 
-            "timings" : [toc0, toc3],
-            "cnt": [0,cnt]
-            #"noise": [N,N]
+    return {"errors" : [error1, error2, error3], 
+            "timings" : [toc1, toc2, toc3],
             }
 
 
@@ -73,7 +66,7 @@ scores_time, scores_it, timings, iterations = find_best_at_all_thresh(df,thresh,
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
-ovars = ["NbIter_inner","r","sigma", "delta"]
+ovars = ["r"] #anything here, should fix shootout
 df_conv = df_to_convergence_df(df, max_time=np.Inf,  
                                 groups=True, groups_names=ovars, other_names=ovars)
 
@@ -84,22 +77,16 @@ fig_winner.show()
 
 # Convergence plots with all runs
 pxfig = px.line(df_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
-            facet_col="delta", facet_row=None,
+            facet_col="seed_idx", facet_row=None,
             log_y=True,
             height=1000)
 pxfig.update_layout(font = dict(size = 20))
 pxfig2 = px.line(df_conv, line_group="groups", x="it", y= "errors", color='algorithm',
-            facet_col="delta", facet_row=None,
+            facet_col="seed_idx", facet_row=None,
             log_y=True,
             height=1000)
 pxfig2.update_layout(font = dict(size = 20))
 pxfig.show()
 pxfig2.show()
 
-
-plt.figure()
-plt.plot(df["cnt"][1])
-plt.plot(df["cnt"][21])
-plt.plot(df["cnt"][41])
-plt.plot(df["cnt"][61])
 plt.show()

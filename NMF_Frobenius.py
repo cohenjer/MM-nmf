@@ -326,6 +326,8 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbo
             return error, W, H, toc#, (k+inner_iter_total)
             
         
+    if verbose:
+        print("Loss at iteration {}: {}".format(k+1,error[-1]))
     return error, W, H, toc #, (k+inner_iter_total)
 
 
@@ -390,11 +392,8 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose
     if verbose:
         print("\n--------- NeNMF running ----------")
 
-    #inner_iter_total = 0
-    #test   = 1 # 
-    #while (test> tol): 
-    iter = 0
-    while (error[-1]> tol) and (iter<itermax): 
+    it = 0
+    while (error[-1]> tol) and (it<itermax): 
 
         Aw = W.T.dot(W)
         Lw = 1/la.norm(Aw,2)
@@ -405,20 +404,17 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose
         Lh = 1/la.norm(Ah,2)
         VHt = V@H.T
         W     = OGM_W(VHt, W, Ah, Lh, nb_inner,epsilon)
-        #inner_iter_total = inner_iter_total+20
-        #WH = W.dot(H)
-        #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
-        #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER
         err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
         error.append(err)
         toc.append(time.time()-tic)
         if verbose:
-            if iter%100==0:
-                print("Error at iteration {}: {}".format(iter+1,err))
-        iter+=1
+            if it%100==0:
+                print("Error at iteration {}: {}".format(it+1,err))
+        it+=1
         
-    
-    return error, W, H, toc#, inner_iter_total
+    if verbose:
+        print("Loss at iteration {}: {}".format(it+1,error[-1]))
+    return error, W, H, toc
 
 
 def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1e-8, verbose=False, use_LeeS=True):
@@ -431,19 +427,14 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
     tic = time.time()
     if verbose:
         print("\n--------- MU extrapolated proposed running ----------")
-    #inner_iter_total = 0
-    #test   = 1 # 
-    #while (test> tol): 
-    iter = 0
-    while error[-1]>tol and iter < itermax:
+    it = 0
+    while error[-1]>tol and it < itermax:
         
         #----fixed w estimate H
         
         A1 = W.T.dot(W)
         B1 = W.T@V
         sqrtB1 =np.sqrt(B1)
-        # find the zero entries of B
-        # Independent of X, computation time could be saved
         Lw = sqrtB1/(A1.dot(sqrtB1)+1e-10)        
         if use_LeeS:
             Lw = np.maximum(Lw, 1/la.norm(A1,2))
@@ -456,27 +447,22 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, epsilon=1
         A2 = H.dot(H.T)
         B2 = V@H.T
         sqrtB2 = np.sqrt(B2)
-        # Independent of X, computation time could be saved
-              
         Lh = sqrtB2/(sqrtB2.dot(A2)+1e-10)        
         if use_LeeS:
             Lh = np.maximum(Lh,1/la.norm(A2,2))
 
         W = OGM_W(B2, W, A2, Lh, nb_inner, epsilon)
-        #inner_iter_total = inner_iter_total+20
-        #WH = W.dot(H)
-        #dH,dW = -W.T.dot(V-WH) , (V - WH).dot(H.T)
-        #test  = la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 
-        # 21 p.2885 -> A RETRAVAILLER
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
         error.append(err)
         toc.append(time.time()-tic)
         if verbose:
-            if iter%100==0:
-                print("Error at iteration {}: {}".format(iter+1,err))
-        iter += 1
+            if it%100==0:
+                print("Error at iteration {}: {}".format(it+1,err))
+        it += 1
     
-    return error, W, H, toc#, inner_iter_total
+    if verbose:
+        print("Loss at iteration {}: {}".format(it+1,error[-1]))
+    return error, W, H, toc
 
 
 
