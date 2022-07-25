@@ -620,7 +620,7 @@ if __name__ == '__main__':
         
          
         crit3, W3, H3, toc3, cnt3  = Proposed_KL(V, Wini, Hini, nb_inner=nb_inner, 
-            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=delta, alpha_strategy="factors_sum", print_it=100)
+            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=delta, alpha_strategy="data_sum", print_it=100)
         
         
     
