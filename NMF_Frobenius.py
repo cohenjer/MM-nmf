@@ -271,46 +271,6 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         
     return error, W, H, toc, cnt
 
-###------ define the SPD matrix that satisfies the auxiliary function
-# TODO: remove, not used anymore
-def auxiliary(Hess, B, X):
-    """
-    Define the SPD matrix A that satisfies the majoration condition for psi that has Hess operator of hessian 
-    Denote B = Hess(X) when B_ij = 0  we can choose A_ij = 0 and X_ij = 0
-    We can suppose that B_ij ~= 0 for all ij
-    To define the auxiliary matrix we need to 
-    find X* that minimizes || B/X ||_1 such that X>=0 and || X|| = 1
-    The solution of this optimization problem is X* = sqrt(B)/ ||sqrt(B)|| 
-    Therefore the majorant matrix A = Hess(sqrt(B))/||sqrt(B)||
-
-    Parameters
-    ----------
-    Hess : operator from R^N --> R^{NxN} 
-        to define the hessian matrix of the cost function 
-        
-    B : NxM array
-        non-negative matrix.
-   X : NxM array 
-       non-negative matrx.
-     
-    Returns
-    -------
-    A : NxM array  
-        non-negative matrix that minimize || B/X ||_1 s.t. || X|| = 1
-    """
-    
-     # find the zero entries of B
-    ind = np.where(B==0)
-    sqrtB = np.sqrt(B)
-    
-    A = sqrtB/Hess(sqrtB)
-    A[ind] = 0 
-    return A
-    
-    
-    
- 
-
 
 ################## Gradient descent method
 
@@ -524,7 +484,7 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose
         it+=1
         
     if verbose:
-        print("Loss at iteration {}: {}".format(it+1,error[-1]))
+        print("Loss at iteration {}: {}".format(it,error[-1]))
     return error, W, H, toc, cnt
 
 
@@ -576,7 +536,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=
         it += 1
     
     if verbose:
-        print("Loss at iteration {}: {}".format(it+1,error[-1]))
+        print("Loss at iteration {}: {}".format(it,error[-1]))
     return error, W, H, toc, cnt_inner
 
 

@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.linalg import hadamard
-import NMF_Frobenius as nmf_f 
+import NLS_Frobenius as nls_f 
 import matplotlib.pyplot as plt
 import nn_fac
 import pandas as pd
@@ -11,6 +11,10 @@ import soundfile as sf
 from scipy import signal
 import scipy.io
 import time
+
+from shootout.methods import runners as rn
+from shootout.methods import post_processors as pp
+
 
 '''
     We load an hyperspectral image called Urban. It has 162 clean spectral bands, and 307x307 pixels. We also load a set of good endmembers considered as ``Ground Truth'' (rank=6 spectra), and we define subsets of the image that are likely to contain pure pixels.
@@ -37,10 +41,13 @@ M = np.transpose(dict['A']) # permutation because we like spectra in W
 Wref = scipy.io.loadmat('./data_and_scripts/Urban_Ref.mat')
 Wref = np.transpose(Wref['References'])
 Wref = Wref/np.sum(Wref, axis=0)
+
 # ground truth rank is 6
-Href = fista(Wref.T@M,Wref.T@Wref,tol=1e-16,n_iter_max=500)
+# for good init
+#Href = fista(Wref.T@M,Wref.T@Wref,tol=1e-16,n_iter_max=500)
 
 # Candidate pixels extraction (300 randomly chosen)
+# We build a larger matrix Wref2, that will be our regressor
 indices = np.random.permutation(M.shape[1])[:300]
 Wref2 = M[:, indices]
 Wref2 = Wref2/np.sum(Wref2, axis=0)
@@ -50,58 +57,27 @@ Wref2 = Wref2/np.sum(Wref2, axis=0)
 # Solving with nonnegative least squares
 #from tensorly.tenalg.proximal import fista
 
-## NNLS computations
-#UtM = Wref.T@M
-#UtU = Wref.T@Wref
-## NNLS HALS
-#H = nn_fac.nnls.hals_nnls_acc(UtM,UtU, in_V = np.random.rand(Wref.shape[1],M.shape[1]),delta=1e-16, maxiter=500)[0]
-#print('HALS done')
-## NNLS FISTA
-#H2 = fista(UtM, UtU, tol=1e-16, n_iter_max=500)
-#print('FISTA done')
-## Postprocessing
-#Mest = Wref@H
-#Mest2 = Wref@H2
-## Error computation
-#print('relative Frobenius error using ground truth, HALS alg', np.linalg.norm(M - Mest, 'fro'))
-#print('relative Frobenius error using ground truth, FISTA alg', np.linalg.norm(M - Mest2, 'fro'))
+def one_run(NbIter = 100,
+            sigma = 0.1,
+            delta = 0,
+            epsilon = 1e-8,
+            seed = 1,
+            ):
+    # Seeding
+    rng = np.random.RandomState(seed+20)
+    # Init
+    Hini = pert_sigma*rng.rand(rank, n)
 
-## Visualization of the results
-#plt.subplot(3,6,3)
-#plt.plot(Wref)
-#plt.legend([1,2,3,4,5,6])
-##plt.subplot(3,5,3)
-##plt.plot(Wmm)
-##plt.legend([1,2,3,4,5])
-#plt.subplot(367)
-#plt.imshow(np.transpose(np.reshape(H[0, :], [307,307])))
-#plt.title('1')
-#plt.subplot(368)
-#plt.imshow(np.transpose(np.reshape(H[1, :], [307,307])))
-#plt.title('2')
-#plt.subplot(369)
-#plt.imshow(np.transpose(np.reshape(H[2, :], [307,307])))
-#plt.title('3')
-#plt.subplot(3,6,10)
-#plt.imshow(np.transpose(np.reshape(H[3, :], [307,307])))
-#plt.title('4')
-#plt.subplot(3,6,11)
-#plt.imshow(np.transpose(np.reshape(H[4, :], [307,307])))
-#plt.title('5')
-#plt.subplot(3,6,12)
-#plt.imshow(np.transpose(np.reshape(H[5, :], [307,307])))
-#plt.title('6')
-#plt.show()
+    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref2, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True)
+    error1, H1, toc1 = nls_f.NeNMF_optimMajo(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
+    error2, H2, toc2 = nls_f.Grad_descent(M , Wref2, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta)
+    error3, H3, toc3 = nls_f.NeNMF(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
+    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Wref2.T@Y, Wref2.T@Wref2, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=M)
 
-## With overcomplete W from randomly picked pixels
-#UtM = Wref2.T@M
-#UtU = Wref2.T@Wref2
-#H = nn_fac.nnls.hals_nnls_acc(UtM,UtU, in_V = np.random.rand(Wref2.shape[1],M.shape[1]),delta=1e-8, nonzero=False, maxiter=100)[0]
-##H = fista(UtM,UtU, tol=1e-8, n_iter_max=100)
-## Postprocessing
-#Mest = Wref2@H
-## Error computation
-#print('Relative Frobenius error with randomly picked pixels, FISTA alg', np.linalg.norm(M - Mest2, 'fro'))
+    return {
+        "errors": [error0,error1,error2,error3,error4],
+        "timings": [toc0,toc1,toc2,toc3,toc4]
+    }
 # --------------------------------------------------------------------
 # --------------------------------------------------------------------
 # # NMF computations
@@ -279,3 +255,40 @@ plt.show()
 # #plt.imshow(np.transpose(np.reshape(Hmm[4, :], [307,307])))
 # #plt.title('5')
 # plt.show()
+
+## Visualization of the results
+#plt.subplot(3,6,3)
+#plt.plot(Wref)
+#plt.legend([1,2,3,4,5,6])
+##plt.subplot(3,5,3)
+##plt.plot(Wmm)
+##plt.legend([1,2,3,4,5])
+#plt.subplot(367)
+#plt.imshow(np.transpose(np.reshape(H[0, :], [307,307])))
+#plt.title('1')
+#plt.subplot(368)
+#plt.imshow(np.transpose(np.reshape(H[1, :], [307,307])))
+#plt.title('2')
+#plt.subplot(369)
+#plt.imshow(np.transpose(np.reshape(H[2, :], [307,307])))
+#plt.title('3')
+#plt.subplot(3,6,10)
+#plt.imshow(np.transpose(np.reshape(H[3, :], [307,307])))
+#plt.title('4')
+#plt.subplot(3,6,11)
+#plt.imshow(np.transpose(np.reshape(H[4, :], [307,307])))
+#plt.title('5')
+#plt.subplot(3,6,12)
+#plt.imshow(np.transpose(np.reshape(H[5, :], [307,307])))
+#plt.title('6')
+#plt.show()
+
+## With overcomplete W from randomly picked pixels
+#UtM = Wref2.T@M
+#UtU = Wref2.T@Wref2
+#H = nn_fac.nnls.hals_nnls_acc(UtM,UtU, in_V = np.random.rand(Wref2.shape[1],M.shape[1]),delta=1e-8, nonzero=False, maxiter=100)[0]
+##H = fista(UtM,UtU, tol=1e-8, n_iter_max=100)
+## Postprocessing
+#Mest = Wref2@H
+## Error computation
+#print('Relative Frobenius error with randomly picked pixels, FISTA alg', np.linalg.norm(M - Mest2, 'fro'))

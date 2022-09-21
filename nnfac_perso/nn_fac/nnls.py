@@ -22,7 +22,7 @@ def vector_nnls_solver(y, A, x, maxiter=500, atime=None, alpha=0.5, delta=0.01,
     
 
 def hals_nnls_acc(UtM, UtU, in_V, maxiter=500, atime=None, alpha=0.5, delta=0.01,
-                  sparsity_coefficient = None, normalize = False, nonzero = False):
+                  sparsity_coefficient = None, normalize = False, nonzero = False, return_error=False, M=None):
 ## Author : Axel Marmoret, based on Jeremy Cohen version's of Nicolas Gillis Matlab's code for HALS
 
     """
@@ -153,6 +153,14 @@ def hals_nnls_acc(UtM, UtU, in_V, maxiter=500, atime=None, alpha=0.5, delta=0.01
 
     # Start timer
     tic = time.time()
+    # tracking time
+    if return_error:
+        # TODO error message if M not provided
+        toc = [0]
+        error_norm = np.prod(M.shape)
+        Mnorm_sq = np.linalg.norm(M)**2
+        error = [np.sqrt(np.abs(Mnorm_sq - 2*np.sum(UtM*V) +  np.sum(UtU*(V@V.T))))/error_norm]
+
     while eps >= delta * eps0 and cnt <= 1+alpha*rho and cnt <= maxiter:
         nodelta = 0
         for k in range(r):
@@ -194,6 +202,14 @@ def hals_nnls_acc(UtM, UtU, in_V, maxiter=500, atime=None, alpha=0.5, delta=0.01
                 rho = atime/btime
         eps = nodelta
         cnt += 1
+
+        # compute error, track time
+        if return_error:
+            error.append(np.sqrt(np.abs(Mnorm_sq - 2*np.sum(UtM*V) +  np.sum(UtU*(V@V.T))))/error_norm)
+            toc.append(time.time()-tic)
+
+    if return_error:
+        return V, eps, cnt, rho, error, toc
 
     return V, eps, cnt, rho
 

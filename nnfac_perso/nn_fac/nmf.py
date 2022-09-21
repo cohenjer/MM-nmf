@@ -17,7 +17,7 @@ from nimfa.methods import seeding
 def nmf(data, rank, init = "random", U_0 = None, V_0 = None, n_iter_max=100, tol=1e-8,
         update_rule = "hals", beta = 2,
         sparsity_coefficients = [None, None], fixed_modes = [], normalize = [False, False],
-        verbose=False, return_costs=False, NbIter_inner=20):
+        verbose=False, return_costs=False, NbIter_inner=20, delta=0.1):
     """
     ======================================
     Nonnegative Matrix Factorization (NMF)
@@ -185,13 +185,13 @@ def nmf(data, rank, init = "random", U_0 = None, V_0 = None, n_iter_max=100, tol
     return compute_nmf(data, rank, U_0, V_0, n_iter_max=n_iter_max, tol=tol,
                        update_rule = update_rule, beta = beta,
                        sparsity_coefficients = sparsity_coefficients, fixed_modes = fixed_modes, normalize = normalize,
-                       verbose=verbose, return_costs=return_costs, NbIter_inner=NbIter_inner)
+                       verbose=verbose, return_costs=return_costs, NbIter_inner=NbIter_inner, delta=delta)
 
 # Author : Jeremy Cohen, modified by Axel Marmoret
 def compute_nmf(data, rank, U_in, V_in, n_iter_max=100, tol=1e-8,
                 update_rule = "hals", beta = 2,
                 sparsity_coefficients = [None, None], fixed_modes = [], normalize = [False, False],
-                verbose=False, return_costs=False, NbIter_inner=20):
+                verbose=False, return_costs=False, NbIter_inner=20, delta=0.1):
     """
     Computation of a Nonnegative matrix factorization via
     hierarchical alternating least squares (HALS) [1],
@@ -279,6 +279,8 @@ def compute_nmf(data, rank, U_in, V_in, n_iter_max=100, tol=1e-8,
     norm_data = np.linalg.norm(data)
     tic = time.time()
     toc = [0]
+    cnt = []
+    print_it = 100
 
     if sparsity_coefficients == None:
         sparsity_coefficients = [None, None]
@@ -290,14 +292,14 @@ def compute_nmf(data, rank, U_in, V_in, n_iter_max=100, tol=1e-8,
     for iteration in range(n_iter_max):
 
         # One pass of least squares on each updated mode
-        U, V, cost = one_nmf_step(data, rank, U, V, norm_data, update_rule, beta,
-                                  sparsity_coefficients, fixed_modes, normalize, NbIter_inner)
+        U, V, cost, last_cnt = one_nmf_step(data, rank, U, V, norm_data, update_rule, beta,
+                                  sparsity_coefficients, fixed_modes, normalize, NbIter_inner=NbIter_inner, delta=delta)
 
         toc.append(time.time() - tic)
-
+        cnt.append(last_cnt)
         cost_fct_vals.append(cost)
 
-        if verbose:
+        if verbose and iteration%print_it==0:
             if iteration == 0:
                 print('Normalized cost function value={}'.format(cost))
             else:
@@ -317,13 +319,13 @@ def compute_nmf(data, rank, U_in, V_in, n_iter_max=100, tol=1e-8,
             break
 
     if return_costs:
-        return np.array(U), np.array(V), cost_fct_vals, toc
+        return np.array(U), np.array(V), cost_fct_vals, toc, cnt
     else:
         return np.array(U), np.array(V)
 
 
 def one_nmf_step(data, rank, U_in, V_in, norm_data, update_rule, beta,
-                 sparsity_coefficients, fixed_modes, normalize, NbIter_inner=20):
+                 sparsity_coefficients, fixed_modes, normalize, NbIter_inner=20, delta=0.1):
     """
     One pass of updates for each factor in NMF
     Update the factors by solving a nonnegative least squares problem per mode
@@ -390,7 +392,7 @@ def one_nmf_step(data, rank, U_in, V_in, norm_data, update_rule, beta,
     U = U_in.copy()
     V = V_in.copy()
 
-    delta=0 #no acceleration
+    #delta=0 #no acceleration
 
     if 0 not in fixed_modes:
         # U update
@@ -411,11 +413,12 @@ def one_nmf_step(data, rank, U_in, V_in, norm_data, update_rule, beta,
             # delta=0 for no early stopping
             # a not used 
             # Should return error !
-            U = np.transpose(nnls.hals_nnls_acc(VMt, VVt, np.transpose(U_in), maxiter=NbIter_inner, atime=None, alpha=0.5, delta=delta,
-                                                sparsity_coefficient = sparsity_coefficients[0], normalize = normalize[0], nonzero = False)[0])
+            U, _, cnt, _ = nnls.hals_nnls_acc(VMt, VVt, np.transpose(U_in), maxiter=NbIter_inner, atime=None, alpha=0.5, delta=delta,
+                                                sparsity_coefficient = sparsity_coefficients[0], normalize = normalize[0], nonzero = False)
+            U = np.transpose(U)
         
         elif update_rule == "mu":
-            U = mu.mu_betadivmin(U, V, data, beta)
+            U, _, cnt, _ = mu.mu_betadivmin(U, V, data, beta)
 
     if 1 not in fixed_modes:
         # V update
@@ -432,11 +435,11 @@ def one_nmf_step(data, rank, U_in, V_in, norm_data, update_rule, beta,
             timer = time.time() - tic
     
             # Compute HALS/NNLS resolution
-            V = nnls.hals_nnls_acc(UtM, UtU, V_in, maxiter=NbIter_inner, atime=None, alpha=0.5, delta=delta,
-                                   sparsity_coefficient = sparsity_coefficients[1], normalize = normalize[1], nonzero = False)[0]
+            V, _, cnt, _ = nnls.hals_nnls_acc(UtM, UtU, V_in, maxiter=NbIter_inner, atime=None, alpha=0.5, delta=delta,
+                                   sparsity_coefficient = sparsity_coefficients[1], normalize = normalize[1], nonzero = False)
         
         elif update_rule == "mu":
-            V = np.transpose(mu.mu_betadivmin(V.T, U.T, data.T, beta))
+            V, _, cnt, _ = np.transpose(mu.mu_betadivmin(V.T, U.T, data.T, beta))
 
     sparsity_coefficients = np.where(np.array(sparsity_coefficients) == None, 0, sparsity_coefficients)
     
@@ -448,4 +451,4 @@ def one_nmf_step(data, rank, U_in, V_in, norm_data, update_rule, beta,
         cost = beta_div.beta_divergence(data, np.dot(U,V), beta)
 
     #cost = cost/(norm_data**2)
-    return U, V, cost
+    return U, V, cost, cnt

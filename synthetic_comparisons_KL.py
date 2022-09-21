@@ -9,55 +9,50 @@ import plotly.graph_objects as go
 # you can get it at 
 # https://github.com/cohenjer/shootout
 from shootout.methods.runners import run_and_track
-from shootout.methods.post_processors import find_best_at_all_thresh, df_to_convergence_df, error_at_time_or_it
+import shootout.methods.post_processors as pp
 from shootout.methods.plotters import plot_speed_comparison
 
 plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
 algs = ["Lee_Sung", "Proposed"]
-nb_seeds = 0
-name = "KL_run_delta-nodelta"
-@run_and_track(algorithm_names=algs, path_store="Results/", name_store=name, add_track="uniform",
-                nb_seeds=nb_seeds, # Change this to >0 to run experiments
-                m = [100],
-                n = [50],
-                r = [8],
-                #sigma = [0,1e-2,1], # for poisson
-                sigma = [1e-6],#,1e-3], # for uniform
-                NbIter_inner = [50],
-                delta=[0.5,0.25,0.15,0],
+nb_seeds = 0  # Change this to >0 to run experiments
+
+name = "KL_run_19-09-2022"
+@run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
+                add_track = {"distribution" : "uniform"},
+                nb_seeds=nb_seeds,
+                mnr = [[200,100,5],[1000,400,20]],
+                NbIter_inner = [100], # for Lee and Seung also
+                SNR = [100],
+                delta = 0.1,
+                seeded_fun=True,
                 )
-def one_run(m=100,n=100,r=10,sigma=0, NbIter=3000,tol=0,NbIter_inner=10, verbose=True, show_it=1000, delta=0.4):
+def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, NbIter_inner=10, verbose=True, show_it=100, delta=0, seed=1):
+    m, n, r = mnr
     # Fixed the signal 
-    # here it is dense, TODO: try sparse
-    # TODO: same init comparisons by copying function calls
-    Worig = np.random.rand(m, r) 
-    Horig = np.random.rand(r, n)  
+    rng = np.random.RandomState(seed+20)
+    Worig = rng.rand(m, r) 
+    Horig = rng.rand(r, n)  
     Vorig = Worig.dot(Horig)
 
     # Initialization for H0 as a random matrix
-    Hini = np.random.rand(r, n)
-    Wini = np.random.rand(m, r) #sparse.random(rV, cW, density=0.25).toarray() 
+    Hini = rng.rand(r, n)
+    Wini = rng.rand(m, r) #sparse.random(rV, cW, density=0.25).toarray() 
     
     # adding Poisson noise to the observed data
-    # TODO: discuss noise choice
-    #N = np.random.poisson(sigma,size=Vorig.shape) # integers, should we scale?
-    N = sigma*np.random.rand(m,n) # uniform, should we scale?
-    V = Vorig + N
-
-    # TODO: compute SNR/use SNR to set up noise
+    #N = np.random.poisson(1,size=Vorig.shape) # integers
+    N = rng.rand(m,n) # uniform
+    sigma = 10**(-SNR/20)*np.linalg.norm(Vorig)/np.linalg.norm(N)
+    V = Vorig + sigma*N
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
-    error0, W0, H0, toc0 = nmf_kl.Lee_Seung_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
-    #error1, W1, H1, toc1 = nmf_kl.Fevotte_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
-    error3, W3, H3, toc3, cnt = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
-    #error2, W2, H2, toc2 = nmf_kl.NeNMF_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol)
+    error0, W0, H0, toc0, cnt0 = nmf_kl.Lee_Seung_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
+    error1, W1, H1, toc1, cnt1 = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="data_sum")
 
-    return {"errors" : [error0, error3], 
-            "timings" : [toc0, toc3],
-            "cnt": [0,cnt]
-            #"noise": [N,N]
+    return {"errors" : [error0, error1], 
+            "timings" : [toc0, toc1],
+            "cnt" :  [cnt0[::10], cnt1[::10]]
             }
 
 
@@ -65,41 +60,46 @@ def one_run(m=100,n=100,r=10,sigma=0, NbIter=3000,tol=0,NbIter_inner=10, verbose
 import pandas as pd
 
 df = pd.read_pickle("Results/"+name)
-nb_seeds = df["seed_idx"].max()+1 # get nbseed from data
+nb_seeds = df["seed"].max()+1 # get nbseed from data
 
-# Using shootout for plotting and postprocessing
-thresh = np.logspace(-3,-8,50) 
-scores_time, scores_it, timings, iterations = find_best_at_all_thresh(df,thresh, nb_seeds)
+# Grouping columns
+df = pp.regroup_columns(df, keys=["mnr"], how_many=3)
 
 # Making a convergence plot dataframe
-# We will show convergence plots for various sigma values, with only n=100
-ovars = ["NbIter_inner","r","sigma", "delta"]
-df_conv = df_to_convergence_df(df, max_time=np.Inf,  
-                                groups=True, groups_names=ovars, other_names=ovars)
+df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True)
 
-# ----------------------- Plot --------------------------- #
-# TODO: go to plotly
-fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
-fig_winner.show()
+# We will show convergence plots for various sigma values, with only n=100
+ovars = ["mnr"]
+df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars,err_name="errors_interp", time_name="timings_interp")
+df_conv = df_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+
+# Median plot
+df_conv_median_time = pp.median_convergence_plot(df_conv, type="timings")
 
 # Convergence plots with all runs
-pxfig = px.line(df_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
-            facet_col="delta", facet_row=None,
+pxfig = px.line(df_conv_median_time, 
+            x="timings", 
+            y= "errors", 
+            color='algorithm',
+            facet_row="mnr",
             log_y=True,
+            error_y="q_errors_p", 
+            error_y_minus="q_errors_m", 
+            template="plotly_white",
             height=1000)
-pxfig.update_layout(font = dict(size = 20))
-pxfig2 = px.line(df_conv, line_group="groups", x="it", y= "errors", color='algorithm',
-            facet_col="delta", facet_row=None,
-            log_y=True,
-            height=1000)
-pxfig2.update_layout(font = dict(size = 20))
+pxfig.update_layout(
+    font_size = 20,
+    width=1200, # in px
+    height=900,
+    )
+# smaller linewidth
+pxfig.update_traces(
+    selector=dict(),
+    line_width=3,
+    error_y_thickness = 0.3,
+)
+pxfig.update_xaxes(matches=None)
+pxfig.update_yaxes(matches=None)
+pxfig.update_xaxes(showticklabels=True)
+pxfig.update_yaxes(showticklabels=True)
 pxfig.show()
-pxfig2.show()
-
-
-plt.figure()
-plt.plot(df["cnt"][1])
-plt.plot(df["cnt"][21])
-plt.plot(df["cnt"][41])
-plt.plot(df["cnt"][61])
-plt.show()
