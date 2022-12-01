@@ -59,3 +59,10 @@
   - Ended up normalizing data but not Wgt, then H is reasonably valued (mean H0 is 0.02)
 - Rerender all plots with indiv algs grids, and fixed interpolation. Also 1200x900 figsize with final hand customization
 - TODO: hyperspectral NMF et Faces experiment.
+
+# Jeremy, 29 Novembre 2022
+
+- Reprise du taf sur ce sujet, faire la partie XP du papier (rédaction et figures)
+- TODOS:
+  - write xp in article
+  - benchmark nmf --> use to compare with toolboxes? (more code...)

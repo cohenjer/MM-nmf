@@ -15,10 +15,10 @@ from shootout.methods.plotters import plot_speed_comparison
 plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["Lee_Sung", "Proposed"]
-nb_seeds = 0  # Change this to >0 to run experiments
+algs = ["Lee_Sung", "Proposed_with_max", "Proposed_no_max"]
+nb_seeds = 10  # Change this to >0 to run experiments
 
-name = "KL_run_19-09-2022"
+name = "KL_run_30-11-2022"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 add_track = {"distribution" : "uniform"},
                 nb_seeds=nb_seeds,
@@ -49,11 +49,12 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, NbIter_inner=10, verbose
     # One noise, one init; NMF is not unique and nncvx so we will find several results
     error0, W0, H0, toc0, cnt0 = nmf_kl.Lee_Seung_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
     error1, W1, H1, toc1, cnt1 = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="data_sum")
+    error2, W2, H2, toc2, cnt2 = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="data_sum", use_LeeS=False)
 
-    return {"errors" : [error0, error1], 
-            "timings" : [toc0, toc1],
-            "cnt" :  [cnt0[::10], cnt1[::10]]
-            }
+    return {"errors" : [error0, error1, error2], 
+            "timings" : [toc0, toc1, toc2],
+            "cnt" :  [cnt0[::10], cnt1[::10], cnt2[::10]]
+           }
 
 
 # -------------------- Post-Processing ------------------- #

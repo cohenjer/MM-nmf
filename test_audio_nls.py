@@ -72,7 +72,7 @@ df = pd.DataFrame()
 
 Wgt = Wgt[:,:rank]
 
-algs = ["Proposed_l2_delta1.8", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS", "Lee_Sung_KL", "Proposed_KL"]
+algs = ["Proposed_l2_gamma1.9", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS", "Lee_Sung_KL", "Proposed_KL"]
 
 @run_and_track(
     nb_seeds=Nb_seeds,

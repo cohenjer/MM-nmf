@@ -14,7 +14,7 @@ from shootout.methods.plotters import plot_speed_comparison
 
 plt.close('all')
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["Lee_Sung","Proposed extrapolated","GD", "NeNMF", "HALS", "Proposed gamma1.8", "Proposed maxupdat"]
+algs = ["Lee_Sung","Proposed extrapolated","GD", "NeNMF", "HALS", "Proposed gamma1.9", "Proposed maxupdat"]
 nb_seeds = 0  # Change this to >0 to run experiments
 name = "l2_nls_run-20-09-2022"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
