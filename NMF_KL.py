@@ -405,7 +405,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 
     
 def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
-                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=True, delta=np.Inf,
+                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf,
                 alpha_strategy="data_sum"):
     
     """
@@ -471,11 +471,16 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
     crit = [compute_error(V, WH, ind0, ind1)]
     cnt = []
     
+    Vinv = 1/V
+    
     for k in range(NbIter):
         
         
-        # FIXED H ESTIMATE W     
+        # FIXED H ESTIMATE W  
+        """ 
         sum_H = np.sum(H, axis = 1)[None,:]
+        
+        
         if alpha_strategy=="factors_sum":
             alphaW = np.sum(W, axis=1)[:,None]/W.shape[0] #TODO discuss this
         inner_change_0 = 1
@@ -495,9 +500,35 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
                 inner_change_l = np.linalg.norm(deltaW)**2
             if inner_change_l < delta*inner_change_0:
                 break
+            
+        
+        """ 
+          
+        inner_change_0 = 1
+        inner_change_l = np.Inf
+        # TODO: repeat vs broadcasting? 
+        sum_H = np.sum(H, axis = 1)[None,:]      
+        aux_W = 1/(Vinv.dot((H*np.sum(H, axis = 0)).T))
+        for iw in range(nb_inner):       
+            if use_LeeS:
+                deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
+            else:
+                deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
+            W = W + deltaW
+            WH = W.dot(H)
+            if iw==0:
+                inner_change_0 = np.linalg.norm(deltaW)**2
+            else:
+                inner_change_l = np.linalg.norm(deltaW)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+            
+           
         cnt.append(iw+1)
             
-        # FIXED W ESTIMATE H        
+        # FIXED W ESTIMATE H  
+        
+        """
         sum_W = np.sum(W, axis = 0)[:, None]          
         if alpha_strategy=="factors_sum":
             alphaH = np.sum(H, axis=0)[None,:]/H.shape[1] #TODO
@@ -517,6 +548,30 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
                 inner_change_l = np.linalg.norm(deltaH)**2
             if inner_change_l < delta*inner_change_0:
                 break
+            
+        """
+        
+        sum_W = np.sum(W, axis = 0)[:, None]
+           
+        inner_change_0 = 1
+        inner_change_l = np.Inf
+        
+        aux_H =   1/((W*np.sum(W, axis = 1)[:,None]).T.dot(Vinv))
+        for ih in range(nb_inner):
+            if use_LeeS:
+                deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+            else:
+                deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+            H = H + deltaH
+            WH = W.dot(H)
+            if ih==0:
+                inner_change_0 = np.linalg.norm(deltaH)**2
+            else:
+                inner_change_l = np.linalg.norm(deltaH)**2
+            if inner_change_l < delta*inner_change_0:
+                break
+            
+        
         cnt.append(ih+1)
 
         # compute the error 
@@ -649,12 +704,14 @@ if __name__ == '__main__':
     results_path = 'Results/beta_divergence' 
     plt.savefig(results_path+'.eps', format='eps')       
     plt.legend(fontsize = 14)  
-     
-    plt.figure(figsize=(6,3),tight_layout = {'pad': 0})
-    k=10
-    plt.plot(np.convolve(cnt0, np.ones(k)/k, mode='valid')[::3])
-    plt.plot(np.convolve(cnt3, np.ones(k)/k, mode='valid')[::3])
-    plt.legend(["LeeSeung", "Proposed"])
+      
+# =============================================================================
+#     plt.figure(figsize=(6,3),tight_layout = {'pad': 0})
+#     k=10
+#     plt.plot(np.convolve(cnt0, np.ones(k)/k, mode='valid')[::3])
+#     plt.plot(np.convolve(cnt3, np.ones(k)/k, mode='valid')[::3])
+#     plt.legend(["LeeSeung", "Proposed"])
+# =============================================================================
 
     plt.show()
 
