@@ -27,8 +27,9 @@ name = "KL_nls_run_30-11-2022"
                 SNR = [100, 30],
                 delta = 0,
                 seeded_fun=True,
+                equation=['Quyen','Jeremy']
                 )
-def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, NbIter_inner=10, verbose=True, show_it=100, delta=0, seed=1):
+def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, NbIter_inner=10, verbose=True, show_it=100, delta=0, seed=1, equation=""):
     m, n, r = mnr
     # Fixed the signal 
     rng = np.random.RandomState(seed+20)
@@ -47,8 +48,8 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, NbIter_inner=10, verbose
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
     error0, H0, toc0 = nls_kl.Lee_Seung_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta)
-    error1, H1, toc1 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="data_sum")
-    error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="data_sum", use_LeeS=False)
+    error1, H1, toc1 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, equation=equation)
+    error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, equation=equation, use_LeeS=False)
 
     return {"errors" : [error0, error1, error2], 
             "timings" : [toc0, toc1, toc2],

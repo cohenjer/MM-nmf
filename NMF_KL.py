@@ -405,8 +405,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 
     
 def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
-                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf,
-                alpha_strategy="data_sum"):
+                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=True, delta=np.Inf, equation='Quyen'):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -456,37 +455,25 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
     H = Hini.copy()
     WH = W.dot(H)
 
-    # Precomputations
-    if alpha_strategy=="data_sum":
-        print('debug, chosing data strategy normalized')
-        alphaH = np.sum(V, axis = 0)[None,:]/H.shape[1]
-        alphaW = np.sum(V, axis = 1)[:, None]/W.shape[0]
-    elif not type(alpha_strategy)==str:
-        print('debug, chosing constant strategy')
-        alphaH = alpha_strategy
-        alphaW = alpha_strategy
-    else:
-        print('debug, chosing factor strategy')
-
     crit = [compute_error(V, WH, ind0, ind1)]
     cnt = []
     
+    # for Quyen's code
     Vinv = 1/V
+    # for Jeremy's code
+    VnormW = np.sum(np.abs(V),axis=1)
+    VnormH = np.sum(np.abs(V),axis=0)
     
     for k in range(NbIter):
-        
-        
-        # FIXED H ESTIMATE W  
-        """ 
-        sum_H = np.sum(H, axis = 1)[None,:]
-        
-        
-        if alpha_strategy=="factors_sum":
-            alphaW = np.sum(W, axis=1)[:,None]/W.shape[0] #TODO discuss this
         inner_change_0 = 1
         inner_change_l = np.Inf
         # TODO: repeat vs broadcasting? 
-        aux_W = alphaW/(np.sum(np.sqrt(sum_H))*np.repeat(np.sqrt(sum_H),W.shape[0], axis=0))
+        if equation=='Quyen':
+            sum_H = np.sum(H, axis = 1)[None,:] 
+            aux_W = 1/(Vinv.dot((H*np.sum(H, axis = 0)).T))
+        else:
+            sum_H = np.sum(H, axis=1)
+            aux_W = np.array([1/(np.linalg.norm(sum_H)/vn*sum_H) for vn in VnormW])
         for iw in range(nb_inner):       
             if use_LeeS:
                 deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
@@ -500,63 +487,20 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
                 inner_change_l = np.linalg.norm(deltaW)**2
             if inner_change_l < delta*inner_change_0:
                 break
-            
-        
-        """ 
-          
-        inner_change_0 = 1
-        inner_change_l = np.Inf
-        # TODO: repeat vs broadcasting? 
-        sum_H = np.sum(H, axis = 1)[None,:]      
-        aux_W = 1/(Vinv.dot((H*np.sum(H, axis = 0)).T))
-        for iw in range(nb_inner):       
-            if use_LeeS:
-                deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
-            else:
-                deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
-            W = W + deltaW
-            WH = W.dot(H)
-            if iw==0:
-                inner_change_0 = np.linalg.norm(deltaW)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaW)**2
-            if inner_change_l < delta*inner_change_0:
-                break
-            
            
         cnt.append(iw+1)
             
         # FIXED W ESTIMATE H  
-        
-        """
-        sum_W = np.sum(W, axis = 0)[:, None]          
-        if alpha_strategy=="factors_sum":
-            alphaH = np.sum(H, axis=0)[None,:]/H.shape[1] #TODO
-        inner_change_0 = 1
-        inner_change_l = np.Inf
-        aux_H = alphaH/(np.sum(np.sqrt(sum_W))*np.repeat(np.sqrt(sum_W),H.shape[1], axis=1) )
-        for ih in range(nb_inner):
-            if use_LeeS:
-                deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
-            else:
-                deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
-            H = H + deltaH
-            WH = W.dot(H)
-            if ih==0:
-                inner_change_0 = np.linalg.norm(deltaH)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaH)**2
-            if inner_change_l < delta*inner_change_0:
-                break
-            
-        """
-        
         sum_W = np.sum(W, axis = 0)[:, None]
-           
         inner_change_0 = 1
         inner_change_l = np.Inf
         
-        aux_H =   1/((W*np.sum(W, axis = 1)[:,None]).T.dot(Vinv))
+        if equation=='Quyen':
+            aux_H =   1/((W*np.sum(W, axis = 1)[:,None]).T.dot(Vinv))
+        else:
+            # my test version
+            sum_W = np.sum(W, axis=0)
+            aux_H = np.array([1/(np.linalg.norm(sum_W)/vn*sum_W) for vn in VnormH]).T
         for ih in range(nb_inner):
             if use_LeeS:
                 deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
@@ -571,7 +515,6 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
             if inner_change_l < delta*inner_change_0:
                 break
             
-        
         cnt.append(ih+1)
 
         # compute the error 

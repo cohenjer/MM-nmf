@@ -144,7 +144,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
     
 def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
                 NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=True, delta=np.Inf,
-                alpha_strategy="data_sum"):
+                equation="Quyen"):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -190,26 +190,22 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
 
     H = Hini.copy()
     WH = W.dot(H)
-
-    # Precomputations
-    if alpha_strategy=="data_sum":
-        print('debug, chosing data strategy normalized')
-        alphaH = np.sum(V, axis = 0)[None,:]/H.shape[1]
-        alphaW = np.sum(V, axis = 1)[:, None]/W.shape[0]
-    elif not type(alpha_strategy)==str:
-        print('debug, chosing constant strategy')
-        alphaH = alpha_strategy
-        alphaW = alpha_strategy
-    else:
-        print('debug, chosing factor strategy')
-
+    
+    # for Quyen's code
+    Vinv = 1/V
+    # for Jeremy's code
+    VnormH = np.sum(np.abs(V),axis=0)
     crit = [compute_error(V, WH, ind0, ind1)]
-    sum_W = np.sum(W, axis = 0)[:, None]          
-    if alpha_strategy=="factors_sum":
-        alphaH = np.sum(H, axis=0)[None,:]/H.shape[1] #TODO
+    
     inner_change_0 = 1
     inner_change_l = np.Inf
-    aux_H = alphaH/(np.sum(np.sqrt(sum_W))*np.repeat(np.sqrt(sum_W),H.shape[1], axis=1) )
+
+    if equation=='Quyen':
+        aux_H =   1/((W*np.sum(W, axis = 1)[:,None]).T.dot(Vinv))
+    else:
+        # my test version
+        sum_W = np.sum(W, axis=0)
+        aux_H = np.array([1/(np.linalg.norm(sum_W)/vn*sum_W) for vn in VnormH]).T
     
     for k in range(NbIter):
         # FIXED W ESTIMATE H        
