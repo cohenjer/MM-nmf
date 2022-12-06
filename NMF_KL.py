@@ -467,12 +467,12 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
     for k in range(NbIter):
         inner_change_0 = 1
         inner_change_l = np.Inf
+        sum_H = np.sum(H, axis=1)
         # TODO: repeat vs broadcasting? 
         if equation=='Quyen':
             sum_H = np.sum(H, axis = 1)[None,:] 
             aux_W = 1/(Vinv.dot((H*np.sum(H, axis = 0)).T))
         else:
-            sum_H = np.sum(H, axis=1)
             aux_W = np.array([1/(np.linalg.norm(sum_H)/vn*sum_H) for vn in VnormW])
         for iw in range(nb_inner):       
             if use_LeeS:
