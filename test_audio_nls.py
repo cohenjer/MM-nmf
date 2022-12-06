@@ -48,9 +48,11 @@ Y = Y/np.linalg.norm(Y,'fro')
 #Y = Y+1e-8
 # Cutting silence, end song and high frequencies (>10600 Hz)
 cutf = 2000
-cutt_in = 0 # song beginning
+cutt_in = int(1/time_step) # song beginning after 1 second
 cutt_out = int(30/time_step)# 30seconds with 20ms steps #time_atoms.shape[0]
 Y = Y[:cutf, cutt_in:cutt_out]
+# normalization
+Y = Y/np.linalg.norm(Y, 'fro')
 
 # -------------------- For NNLS -----------------------
 # Importing a good dictionnary for the NNLS part
@@ -63,10 +65,10 @@ Wgt = Wgt[:cutf,:]
 #------------------------------------------------------------------
 # Computing the NMF to try and recover activations and templates
 m, n = Y.shape
-Nb_seeds = 0
+Nb_seeds = 1
 rank = 88
 
-name = "audio_nls_test_21-09-2022"
+name = "audio_nls_test_06-12-2022(KL only)"
 
 df = pd.DataFrame()
 
@@ -82,9 +84,9 @@ algs = ["Proposed_l2_gamma1.9", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2",
     seeded_fun=True,
 )
 def one_run(rank = 88,
-            NbIter = 40,
+            NbIter = 100,
             sigma = 1,
-            delta=0,
+            delta=0, # NLS test, no early stopping
             epsilon = 1e-8,
             seed=1, # will actually be seed idx from run and track
             ):

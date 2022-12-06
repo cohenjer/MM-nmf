@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import hadamard
 import NLS_Frobenius as nls_f 
+import NLS_KL as nls_kl
 import matplotlib.pyplot as plt
 import nn_fac
 import pandas as pd
@@ -48,9 +49,9 @@ Wref = Wref/np.sum(Wref, axis=0)
 
 # Candidate pixels extraction (300 randomly chosen)
 # We build a larger matrix Wref2, that will be our regressor
-indices = np.random.permutation(M.shape[1])[:300]
-Wref2 = M[:, indices]
-Wref2 = Wref2/np.sum(Wref2, axis=0)
+#indices = np.random.permutation(M.shape[1])[:300]
+#Wref2 = M[:, indices]
+#Wref2 = Wref2/np.sum(Wref2, axis=0)
 
 # --------------------------------------------------------------------
 # --------------------------------------------------------------------

@@ -143,7 +143,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
 
     
 def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
-                NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=True, delta=np.Inf,
+                NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf,
                 equation="Quyen"):
     
     """

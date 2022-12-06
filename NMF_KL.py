@@ -405,7 +405,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 
     
 def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
-                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=True, delta=np.Inf, equation='Quyen'):
+                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, equation='Quyen'):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
