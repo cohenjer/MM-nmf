@@ -35,29 +35,16 @@ dico = scipy.io.loadmat('./data_and_scripts/Urban.mat')
 M = np.transpose(dico['A']) # permutation because we like spectra in W
 
 # It can be nice to normalize the data, then absolute error is also relative error
-M = M/np.linalg.norm(M, 'fro')
-# Padding for log
-pad = 1e-16
-M = np.maximum(M,pad)
+#M = M/np.linalg.norm(M, 'fro')
 
 # Ground truth import
 # https://gitlab.com/nnadisic/giant.jl/-/blob/master/xp/data/Urban_Ref.mat
 Wref = scipy.io.loadmat('./data_and_scripts/Urban_Ref.mat')
 Wref = np.transpose(Wref['References'])
-Wref = Wref#/np.sum(Wref, axis=0)
 
 # ground truth rank is 6
 # for good init
 #Href = fista(Wref.T@M,Wref.T@Wref,tol=1e-16,n_iter_max=500)
-
-# Candidate pixels extraction (100 randomly chosen)
-# We build a larger matrix Wref2, that will be our regressor
-#indices = np.random.permutation(M.shape[1])[:100]
-#Wref2 = M[:, indices]
-#Wref2 = Wref2#/np.sum(Wref2, axis=0)
-
-# Using the ground truth for this xp
-Wref2 = Wref#/np.sum(Wref2, axis=0)
 
 # --------------------------------------------------------------------
 # --------------------------------------------------------------------
@@ -65,8 +52,8 @@ Wref2 = Wref#/np.sum(Wref2, axis=0)
 #from tensorly.tenalg.proximal import fista
 
 algs = ["Proposed_l2_delta1.8", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS", "Lee_Sung_KL", "Proposed_KL"]
-name = "hsi_nls_test_06_12_20220"
-Nb_seeds = 1
+name = "hsi_nls_test_06_12_2022"
+Nb_seeds = 3
 
 @rn.run_and_track(
     nb_seeds=Nb_seeds,
@@ -74,8 +61,7 @@ Nb_seeds = 1
     path_store="Results/",
     name_store=name,
     seeded_fun=True)
-def one_run(NbIter = 40,
-            sigma = 1,
+def one_run(NbIter = 100,
             delta = 0,
             epsilon = 1e-8,
             seed = 1,
@@ -83,16 +69,16 @@ def one_run(NbIter = 40,
     # Seeding
     rng = np.random.RandomState(seed+20)
     # Init
-    Hini = sigma*rng.rand(Wref2.shape[1], M.shape[1])
+    Hini = rng.rand(Wref.shape[1], M.shape[1])
 
-    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref2, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True)
-    error1, H1, toc1 = nls_f.NeNMF_optimMajo(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    error2, H2, toc2 = nls_f.Grad_descent(M , Wref2, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta)
-    error3, H3, toc3 = nls_f.NeNMF(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Wref2.T@M, Wref2.T@Wref2, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=M)
+    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True)
+    error1, H1, toc1 = nls_f.NeNMF_optimMajo(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
+    error2, H2, toc2 = nls_f.Grad_descent(M , Wref, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta)
+    error3, H3, toc3 = nls_f.NeNMF(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
+    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Wref.T@M, Wref.T@Wref, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=M)
 
-    error5, H5, toc5 = nls_kl.Lee_Seung_KL(M, Wref2, Hini, NbIter=NbIter, verbose=True, delta=delta)
-    error6, H6, toc6 = nls_kl.Proposed_KL(M, Wref2, Hini, NbIter=NbIter, verbose=True, delta=delta)
+    error5, H5, toc5 = nls_kl.Lee_Seung_KL(M, Wref, Hini, NbIter=NbIter, verbose=True, delta=delta)
+    error6, H6, toc6 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=True, delta=delta)
     print(np.mean(H0))
 
     return {
@@ -105,7 +91,7 @@ def one_run(NbIter = 40,
 df = pd.read_pickle("Results/"+name)
 
 # Interpolating
-df = pp.interpolate_time_and_error(df, npoints = 40, adaptive_grid=True)
+df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True)
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
@@ -456,11 +442,11 @@ pxfig2.show()
 #plt.show()
 
 ## With overcomplete W from randomly picked pixels
-#UtM = Wref2.T@M
-#UtU = Wref2.T@Wref2
-#H = nn_fac.nnls.hals_nnls_acc(UtM,UtU, in_V = np.random.rand(Wref2.shape[1],M.shape[1]),delta=1e-8, nonzero=False, maxiter=100)[0]
+#UtM = Wref.T@M
+#UtU = Wref.T@Wref
+#H = nn_fac.nnls.hals_nnls_acc(UtM,UtU, in_V = np.random.rand(Wref.shape[1],M.shape[1]),delta=1e-8, nonzero=False, maxiter=100)[0]
 ##H = fista(UtM,UtU, tol=1e-8, n_iter_max=100)
 ## Postprocessing
-#Mest = Wref2@H
+#Mest = Wref@H
 ## Error computation
 #print('Relative Frobenius error with randomly picked pixels, FISTA alg', np.linalg.norm(M - Mest2, 'fro'))

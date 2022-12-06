@@ -8,6 +8,7 @@ Created on Thu Jun  9 10:42:05 2022
 import numpy as np
 from matplotlib import pyplot as plt
 from numpy import linalg as la
+from scipy.special import kl_div
 
 import time
 
@@ -17,6 +18,7 @@ import time
 def compute_error(V, WH, ind0=None, ind1=None):
     """
     Elementwise Kullback Leibler divergence
+    TODO: replace with better one to avoid problems with log0
 
     Parameters
     ----------
@@ -37,12 +39,13 @@ def compute_error(V, WH, ind0=None, ind1=None):
     """
         
     if ind0 or ind1:
+        # What is this ??
         if not ind0:
             ind0 = np.zeros(V.shape,dtype=bool)
         if not ind1:
             ind1 = np.zeros(V.shape,dtype=bool)
         return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
-    return np.sum(V* np.log(V/WH) - V + WH)
+    return np.sum(kl_div(V,WH)) #V* np.log(V/WH) - V + WH)
 
 # Stoppig criteria
 
@@ -143,8 +146,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
 
     
 def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
-                NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf,
-                equation="Quyen"):
+                NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=True, delta=np.Inf):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -192,7 +194,7 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
     WH = W.dot(H)
     
     # for Quyen's code
-    Vinv = 1/V
+    Vinv = 1/(V+1e-16)
     # for Jeremy's code
     VnormH = np.sum(np.abs(V),axis=0)
     crit = [compute_error(V, WH, ind0, ind1)]

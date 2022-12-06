@@ -66,3 +66,14 @@
 - TODOS:
   - write xp in article
   - benchmark nmf --> use to compare with toolboxes? (more code...)
+
+# Jeremy, 12 décembre 2022
+
+- Quyen changed the update (KL only), no more alpha, have to rerun tests
+- TODO for Frobenius as well
+- For real data, does not improve --> why
+  - Testing the impact of sparsity of factors on improvements. My guess: improvement when SNR high and dense factors
+  - Testing done. 
+    - Synthetic: Sparsity has an impact on initialization, but not SNR. I cannot reproduce the behavior of the real data however.
+    - Audio with fake data: sparsity has no impact (using max update). Low SNR reproduces somewhat the results, indicating that the problem I am solving with real data is just not a good NLS/NMF problem (no good solution).
+- Replaced handmade KL div by scipy kldiv which works for x=0 y>=0
