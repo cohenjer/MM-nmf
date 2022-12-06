@@ -18,7 +18,7 @@ plt.close('all')
 algs = ["Lee_Sung", "Proposed_with_max", "Proposed_no_max"]
 nb_seeds = 10  # Change this to >0 to run experiments
 
-name = "KL_nls_run_30-11-2022"
+name = "KL_nls_run_06-12-2022"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 add_track = {"distribution" : "uniform"},
                 nb_seeds=nb_seeds,
@@ -27,7 +27,6 @@ name = "KL_nls_run_30-11-2022"
                 SNR = [100, 30],
                 delta = 0,
                 seeded_fun=True,
-                equation=['Quyen','Jeremy']
                 )
 def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, NbIter_inner=10, verbose=True, show_it=100, delta=0, seed=1, equation=""):
     m, n, r = mnr

@@ -200,13 +200,10 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
     inner_change_0 = 1
     inner_change_l = np.Inf
 
-    sum_W = np.sum(W, axis=0)
-    if equation=='Quyen':
-        aux_H =   1/((W*sum_W[:,None]).T.dot(Vinv))
-    else:
-        # my test version
-        aux_H = np.array([1/(np.linalg.norm(sum_W)/vn*sum_W) for vn in VnormH]).T
-    
+    sum_W = np.sum(W, axis=0)[:,None]
+    sum_W2= np.sum(W, axis=1)[:,None]
+    aux_H =   1/((W*sum_W2).T.dot(Vinv))
+
     for k in range(NbIter):
         # FIXED W ESTIMATE H        
         if use_LeeS:
