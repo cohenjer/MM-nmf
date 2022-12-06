@@ -17,9 +17,9 @@ plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
 algs = ["Proposed-testing delta and inner iters"]
-nb_seeds = 0  # Change this to >0 to run experiments
+nb_seeds = 10  # Change this to >0 to run experiments
 
-name = "KL_run_delta-choice-19-09-2022"
+name = "KL_run_delta-choice-06-12-2022"
 variables = {
     'mnr' : [[200,100,5]],
     'NbIter_inner' : [100],
@@ -54,7 +54,7 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=20000, tol=0, NbIter_inner=10, verbos
     V = Vorig + sigma*N
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
-    error, W, H, toc, cnt = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, alpha_strategy="data_sum")
+    error, W, H, toc, cnt = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
 
     return {"errors" : error, 
             "timings" : toc,
