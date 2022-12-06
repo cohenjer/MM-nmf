@@ -460,21 +460,14 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
     
     # for Quyen's code
     Vinv = 1/V
-    # for Jeremy's code
-    VnormW = np.sum(np.abs(V),axis=1)
-    VnormH = np.sum(np.abs(V),axis=0)
     
     for k in range(NbIter):
         inner_change_0 = 1
         inner_change_l = np.Inf
-        sum_H = np.sum(H, axis=1)
-        # TODO: repeat vs broadcasting? 
-        if equation=='Quyen':
-            sum_H = np.sum(H, axis = 1)[None,:] 
-            aux_W = 1/(Vinv.dot((H*np.sum(H, axis = 0)).T))
-        else:
-            aux_W = np.array([1/(np.linalg.norm(sum_H)/vn*sum_H) for vn in VnormW])
-        for iw in range(nb_inner):       
+        sum_H = np.sum(H, axis = 1)[None,:] 
+        sum_H2= np.sum(H, axis = 0)[None,:]
+        aux_W = 1/(Vinv.dot((H*sum_H2).T))
+        for iw in range(nb_inner): 
             if use_LeeS:
                 deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
             else:
@@ -492,15 +485,11 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
             
         # FIXED W ESTIMATE H  
         sum_W = np.sum(W, axis = 0)[:, None]
+        sum_W2= np.sum(W, axis = 1)[:, None]
         inner_change_0 = 1
         inner_change_l = np.Inf
         
-        if equation=='Quyen':
-            aux_H =   1/((W*np.sum(W, axis = 1)[:,None]).T.dot(Vinv))
-        else:
-            # my test version
-            sum_W = np.sum(W, axis=0)
-            aux_H = np.array([1/(np.linalg.norm(sum_W)/vn*sum_W) for vn in VnormH]).T
+        aux_H =   1/((W*sum_W2).T.dot(Vinv))
         for ih in range(nb_inner):
             if use_LeeS:
                 deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
