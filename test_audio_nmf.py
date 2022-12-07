@@ -34,52 +34,49 @@ from shootout.methods.plotters import plot_speed_comparison
 
 # Importing data and computing STFT using the Attack-Decay paper settings
 # Read the song (you can use your own!)
-the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-bk_xmas1_ENSTDkCl.wav')
+the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-bach_847_AkPnBcht.wav')
 # Using the settings of the Attack-Decay transcription paper
-the_signal = the_signal[:,0] + the_signal[:,1] # summing left and right channels
+the_signal = the_signal[:,0] # left channel only
 frequencies, time_atoms, Y = signal.stft(the_signal, fs=sampling_rate_local, nperseg=4096, nfft=8192, noverlap=4096 - 882)
 time_step = time_atoms[1] #20 ms
 freq_step = frequencies[1] #5.3 hz
 #time_atoms = time_atoms # ds scale
-# Taking the power spectrogram
+# Taking the amplitude spectrogram
 Y = np.abs(Y)**2
-# Normalization
-Y = Y/np.linalg.norm(Y,'fro')
-# adding some constant noise for avoiding zeros
-#Y = Y+1e-8
-# Cutting silence, end song and high frequencies (>10600 Hz)
-cutf = 2000
-cutt_in = 0 # song beginning
+# Cutting silence, end song and high frequencies (>5300 Hz)
+cutf = 500 #todo increase
+cutt_in = int(1/time_step) # song beginning after 1 second
 cutt_out = int(30/time_step)# 30seconds with 20ms steps #time_atoms.shape[0]
 Y = Y[:cutf, cutt_in:cutt_out]
+# normalization
+#Y = Y/np.linalg.norm(Y, 'fro')
 
 # -------------------- For NNLS -----------------------
 # Importing a good dictionnary for the NNLS part
-Wgt = np.load('./data_and_scripts/attack_dict_piano_ENSTDkCl_beta_1_stftAD_True_intensity_M.npy')
+Wgt_attack = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+Wgt_decay = np.load('./data_and_scripts/decay_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+Wgt = np.concatenate((Wgt_attack,Wgt_decay),axis=1)
 # Also cutting the dictionary
 Wgt = Wgt[:cutf,:]
 # -----------------------------------------------------
 
 
 #------------------------------------------------------------------
-# NNLS with fixed dictionary
-
-H_nnls = fista(Wgt.T@Y, Wgt.T@Wgt, tol=1e-16, n_iter_max=1000)
-Hgt = np.copy(H_nnls)
-
-
-#------------------------------------------------------------------
 # Computing the NMF to try and recover activations and templates
 m, n = Y.shape
-Nb_seeds = 10
-rank = 88
+rank = 88*2 # one template per note only for speed
+#Wgt = Wgt[:,:rank]
+
+# Test: changing the data
+#Htrue = sparsify(np.random.rand(rank,n),0.5)
+#Y = Wgt@Htrue + 1e-3*np.random.rand(*Y.shape)
 
 name = "audio_test_20-09-2022"
 
 df = pd.DataFrame()
 
-Wgt = Wgt[:,:rank]
-Hgt = Hgt[:rank,:]
+
+Nb_seeds=1
 algs = ["Proposed_l2_delta1.8", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS_l2", "Lee_Sung_kl", "Proposed_KL"]
 # TODO: better error message when algs dont match
 
@@ -89,17 +86,15 @@ algs = ["Proposed_l2_delta1.8", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2",
     path_store="Results/",
     name_store=name,
 )
-def one_run(rank = 88,
+def one_run(rank = rank,
             tol = 0,
             NbIter = 100,
             NbIter_inner = 100,
-            pert_sigma = 1,
-            use_gt = 0,
             delta=0.1,
             epsilon = 1e-8):
     # Perturbing the initialization for randomization
-    Wini = use_gt*Wgt + pert_sigma*np.random.rand(m, rank)
-    Hini = use_gt*Hgt + pert_sigma*np.random.rand(rank, n)
+    Wini = Wgt + 0.1*np.random.rand(m,rank)
+    Hini = np.random.rand(rank, n)
 
     # Frobenius algorithms
     #error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(Y,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon, verbose=True, delta=delta)   
@@ -110,8 +105,8 @@ def one_run(rank = 88,
     W4, H4, error4, toc4, cnt4 = nn_fac.nmf.nmf(Y, rank, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner, verbose=True, delta=delta)
 
     # KL algorithms
-    error5, W5, H5, toc5, cnt5 = nmf_kl.Lee_Seung_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True)
-    error6, W6, H6, toc6, cnt6 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True)
+    error5, W5, H5, toc5, cnt5 = nmf_kl.Lee_Seung_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True, print_it=1)
+    error6, W6, H6, toc6, cnt6 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True, print_it=1)
 
 
     return {
@@ -122,14 +117,6 @@ def one_run(rank = 88,
     
 
 df = pd.read_pickle("Results/"+name)
-
-# no need for median plots here, only 3 runs  (too costly)
-
-## Using shootout for plotting and postprocessing
-#min_thresh = 0
-#max_thresh = -10
-#thresh = np.logspace(min_thresh,max_thresh,50)
-#scores_time, scores_it, timings, iterations = find_best_at_all_thresh(df,thresh, Nb_seeds)
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100

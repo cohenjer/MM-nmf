@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import hadamard
 import NLS_Frobenius as nls_f 
+import NLS_KL as nls_kl
 import matplotlib.pyplot as plt
 import nn_fac
 import pandas as pd
@@ -34,32 +35,25 @@ dico = scipy.io.loadmat('./data_and_scripts/Urban.mat')
 M = np.transpose(dico['A']) # permutation because we like spectra in W
 
 # It can be nice to normalize the data, then absolute error is also relative error
-M = M/np.linalg.norm(M, 'fro')
+#M = M/np.linalg.norm(M, 'fro')
 
 # Ground truth import
 # https://gitlab.com/nnadisic/giant.jl/-/blob/master/xp/data/Urban_Ref.mat
 Wref = scipy.io.loadmat('./data_and_scripts/Urban_Ref.mat')
 Wref = np.transpose(Wref['References'])
-Wref = Wref#/np.sum(Wref, axis=0)
 
 # ground truth rank is 6
 # for good init
 #Href = fista(Wref.T@M,Wref.T@Wref,tol=1e-16,n_iter_max=500)
-
-# Candidate pixels extraction (100 randomly chosen)
-# We build a larger matrix Wref2, that will be our regressor
-indices = np.random.permutation(M.shape[1])[:100]
-Wref2 = M[:, indices]
-Wref2 = Wref2#/np.sum(Wref2, axis=0)
 
 # --------------------------------------------------------------------
 # --------------------------------------------------------------------
 # Solving with nonnegative least squares
 #from tensorly.tenalg.proximal import fista
 
-algs = ["Proposed_l2_delta1.8", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS"]
-name = "hsi_nls_test_21_09_2022"
-Nb_seeds = 0
+algs = ["Proposed_l2_delta1.8", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS", "Lee_Sung_KL", "Proposed_KL"]
+name = "hsi_nls_test_06_12_2022"
+Nb_seeds = 3
 
 @rn.run_and_track(
     nb_seeds=Nb_seeds,
@@ -67,8 +61,7 @@ Nb_seeds = 0
     path_store="Results/",
     name_store=name,
     seeded_fun=True)
-def one_run(NbIter = 40,
-            sigma = 1,
+def one_run(NbIter = 100,
             delta = 0,
             epsilon = 1e-8,
             seed = 1,
@@ -76,44 +69,53 @@ def one_run(NbIter = 40,
     # Seeding
     rng = np.random.RandomState(seed+20)
     # Init
-    Hini = sigma*rng.rand(Wref2.shape[1], M.shape[1])
+    Hini = rng.rand(Wref.shape[1], M.shape[1])
 
-    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref2, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True)
-    error1, H1, toc1 = nls_f.NeNMF_optimMajo(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    error2, H2, toc2 = nls_f.Grad_descent(M , Wref2, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta)
-    error3, H3, toc3 = nls_f.NeNMF(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Wref2.T@M, Wref2.T@Wref2, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=M)
+    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True)
+    error1, H1, toc1 = nls_f.NeNMF_optimMajo(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
+    error2, H2, toc2 = nls_f.Grad_descent(M , Wref, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta)
+    error3, H3, toc3 = nls_f.NeNMF(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
+    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Wref.T@M, Wref.T@Wref, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=M)
 
+    error5, H5, toc5 = nls_kl.Lee_Seung_KL(M, Wref, Hini, NbIter=NbIter, verbose=True, delta=delta)
+    error6, H6, toc6 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=True, delta=delta)
     print(np.mean(H0))
 
     return {
-        "errors": [error0,error1,error2,error3,error4],
-        "timings": [toc0,toc1,toc2,toc3,toc4]
+        "errors": [error0,error1,error2,error3,error4, error5, error6],
+        "timings": [toc0,toc1,toc2,toc3,toc4, toc5, toc6],
+        "loss": 5*["l2"]+2*["kl"],
     }
 
 
 df = pd.read_pickle("Results/"+name)
 
 # Interpolating
-df = pp.interpolate_time_and_error(df, npoints = 40, adaptive_grid=True)
+df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True)
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
-df_conv_time = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               err_name="errors_interp", time_name="timings_interp")
-df_conv_time = df_conv_time.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
-# iteration plots
-df_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[])
+df_l2_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"l2"}, err_name="errors_interp", time_name="timings_interp")
+df_l2_conv = df_l2_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 
+df_l2_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"l2"})
+
+df_kl_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"kl"}, err_name="errors_interp", time_name="timings_interp")
+df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 # ----------------------- Plot --------------------------- #
+#fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
+#fig_winner.show()
+
 # Median plots
-df_conv_median_time = pp.median_convergence_plot(df_conv_time, type="timings")
-df_conv_median_it = pp.median_convergence_plot(df_conv_it, type="iterations")
-# subsample
-#df_conv_median_it = df_conv_median_it[df_conv_median_it["it"]%3==0] # manual tweak
+df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type="timings")
+df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it, type="iterations")
+df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type="timings")
 
 # Convergence plots with all runs
-pxfig = px.line(df_conv_median_time, 
+pxfig = px.line(df_l2_conv_median_time, 
             x="timings", 
             y= "errors", 
             color='algorithm',
@@ -130,9 +132,29 @@ pxfig.update_layout(
 pxfig.update_traces(
     selector=dict(),
     line_width=3,
-    error_y_thickness = 0.3)
-pxfig2 = px.line(df_conv_median_it, 
+    error_y_thickness = 0.6,)
+
+pxfig3 = px.line(df_l2_conv_median_it, 
             x="it", 
+            y= "errors", 
+            color='algorithm',
+            log_y=True,
+            error_y="q_errors_p", 
+            error_y_minus="q_errors_m", 
+            template="plotly_white",
+            height=1000)
+pxfig3.update_layout(
+    font_size = 20,
+    width=1200, # in px
+    height=900,
+    )
+pxfig3.update_traces(
+    selector=dict(),
+    line_width=3,
+    error_y_thickness = 0.5)
+
+pxfig2 = px.line(df_kl_conv_median_time, 
+            x="timings", 
             y= "errors", 
             color='algorithm',
             log_y=True,
@@ -148,11 +170,71 @@ pxfig2.update_layout(
 pxfig2.update_traces(
     selector=dict(),
     line_width=3,
-    error_y_thickness = 0.3)
+    error_y_thickness = 0.5,)
 
-
-pxfig2.show()
+pxfig3.show()
 pxfig.show()
+pxfig2.show()
+
+## Interpolating
+#df = pp.interpolate_time_and_error(df, npoints = 40, adaptive_grid=True)
+
+## Making a convergence plot dataframe
+## We will show convergence plots for various sigma values, with only n=100
+#df_conv_time = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               #err_name="errors_interp", time_name="timings_interp")
+#df_conv_time = df_conv_time.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+## iteration plots
+#df_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[])
+
+## ----------------------- Plot --------------------------- #
+## Median plots
+#df_conv_median_time = pp.median_convergence_plot(df_conv_time, type="timings")
+#df_conv_median_it = pp.median_convergence_plot(df_conv_it, type="iterations")
+## subsample
+##df_conv_median_it = df_conv_median_it[df_conv_median_it["it"]%3==0] # manual tweak
+
+## Convergence plots with all runs
+#pxfig = px.line(df_conv_median_time, 
+            #x="timings", 
+            #y= "errors", 
+            #color='algorithm',
+            #log_y=True,
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+            #template="plotly_white",
+            #height=1000)
+#pxfig.update_layout(
+    #font_size = 20,
+    #width=1200, # in px
+    #height=900,
+    #)
+#pxfig.update_traces(
+    #selector=dict(),
+    #line_width=3,
+    #error_y_thickness = 0.3)
+#pxfig2 = px.line(df_conv_median_it, 
+            #x="it", 
+            #y= "errors", 
+            #color='algorithm',
+            #log_y=True,
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+            #template="plotly_white",
+            #height=1000)
+#pxfig2.update_layout(
+    #font_size = 20,
+    #width=1200, # in px
+    #height=900,
+    #)
+#pxfig2.update_traces(
+    #selector=dict(),
+    #line_width=3,
+    #error_y_thickness = 0.3)
+
+
+#pxfig2.show()
+#pxfig.show()
 
 ## --------------------------------------------------------------------
 ## --------------------------------------------------------------------
@@ -360,11 +442,11 @@ pxfig.show()
 #plt.show()
 
 ## With overcomplete W from randomly picked pixels
-#UtM = Wref2.T@M
-#UtU = Wref2.T@Wref2
-#H = nn_fac.nnls.hals_nnls_acc(UtM,UtU, in_V = np.random.rand(Wref2.shape[1],M.shape[1]),delta=1e-8, nonzero=False, maxiter=100)[0]
+#UtM = Wref.T@M
+#UtU = Wref.T@Wref
+#H = nn_fac.nnls.hals_nnls_acc(UtM,UtU, in_V = np.random.rand(Wref.shape[1],M.shape[1]),delta=1e-8, nonzero=False, maxiter=100)[0]
 ##H = fista(UtM,UtU, tol=1e-8, n_iter_max=100)
 ## Postprocessing
-#Mest = Wref2@H
+#Mest = Wref@H
 ## Error computation
 #print('Relative Frobenius error with randomly picked pixels, FISTA alg', np.linalg.norm(M - Mest2, 'fro'))
