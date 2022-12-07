@@ -147,7 +147,7 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, t
 #------------------------------------
 #  NMF algorithm proposed version
 
-def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, use_LeeS=True, print_it=100, delta=np.Inf):
+def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, use_LeeS=False, print_it=100, delta=np.Inf):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -213,7 +213,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         # FIXED W ESTIMATE H
         A1 = W.T.dot(W)
         B1 = W.T@V
-        sqrtB1 =np.sqrt(B1)
+        sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None]) # C'EST ICI QUE J'AI CHANGÉ
         aux_H = sqrtB1/A1.dot(sqrtB1)        
         inner_change_0 = 1
         inner_change_l = np.Inf
@@ -237,7 +237,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         # FIXED H ESTIMATE W
         A2 = H.dot(H.T)
         B2 = V@H.T
-        sqrtB2 = np.sqrt(B2)
+        sqrtB2 = np.sqrt(B2/np.sum(H,axis=1)) # C'EST ICI QUE J'AI CHANGÉ
         aux_W = sqrtB2/sqrtB2.dot(A2)    
         inner_change_0 = 1
         inner_change_l = np.Inf
@@ -505,8 +505,8 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=
         #----fixed w estimate H
         
         A1 = W.T.dot(W)
-        B1 = W.T@V
-        sqrtB1 =np.sqrt(B1)
+        B1 = W.T@V       
+        sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None]) # C'EST ICI QUE J'AI CHANGÉ
         Lw = sqrtB1/A1.dot(sqrtB1)        
         if use_LeeS:
             Lw = np.maximum(Lw, 1/la.norm(A1,2))
@@ -519,7 +519,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=
         
         A2 = H.dot(H.T)
         B2 = V@H.T
-        sqrtB2 = np.sqrt(B2)
+        sqrtB2 = np.sqrt(B2/np.sum(H,axis=1)) # C'EST ICI QUE J'AI CHANGÉ
         # TODO: removed epsilon in denom OK?
         Lh = sqrtB2/sqrtB2.dot(A2)    
         if use_LeeS:
@@ -615,11 +615,13 @@ if __name__ == '__main__':
     Error1 = np.zeros(NbSeed)
     Error2 = np.zeros(NbSeed)     
     Error3 = np.zeros(NbSeed)
+    Error4 = np.zeros(NbSeed)
     
     NbIterStop0 = np.zeros(NbSeed)
     NbIterStop1 = np.zeros(NbSeed)
     NbIterStop2 = np.zeros(NbSeed)
     NbIterStop3 = np.zeros(NbSeed)
+    NbIterStop4 = np.zeros(NbSeed)
     
      
  
@@ -646,8 +648,14 @@ if __name__ == '__main__':
         NbIterStop0[s] = len(error0)
         
       
-        
+        time_start4 = time.time()
         error4, W4, H4, toc4, cnt4  = NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, verbose=verbose, use_LeeS=True, delta=delta)
+        time4 = time.time() - time_start4
+        Error4[s] = error4[-1] 
+        NbIterStop4[s] = len(error4)
+        
+        
+        
         time_start1 = time.time()
         error1, W1, H1, toc1, cnt1 = NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, verbose=verbose, use_LeeS=False, delta=delta)
         time1 = time.time() - time_start1
@@ -702,7 +710,8 @@ if __name__ == '__main__':
     print('Gradient descent: Error = '+str(np.mean(Error2)) + '; NbIter = '  + str(np.mean(NbIterStop2)) + '; Elapsed time = '+str(time2)+ '\n')
     print('NeNMF: Error = '+str(np.mean(Error3)) + '; NbIter = '  + str(np.mean(NbIterStop3)) + '; Elapsed time = '+str(time3)+ '\n')
 
-    
+    print('NeNMF with good Majorant: Error = '+str(np.mean(Error4)) + '; NbIter = '  + str(np.mean(NbIterStop4)) + '; Elapsed time = '+str(time4)+ '\n')
+
     
     
     
