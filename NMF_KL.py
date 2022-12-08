@@ -99,7 +99,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n------Lee_Sung_KL running------")
@@ -154,7 +154,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
         
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
@@ -209,7 +209,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n------Fevotte_Idier_KL running------")
@@ -265,7 +265,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
         H = np.maximum(H * scale[:,None], epsilon)
                
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
@@ -356,7 +356,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
     TODO
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n------NeNMF_KL running------")
@@ -384,7 +384,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
         cnt.append(cnt)
         
         crit.append(compute_error(V, W.dot(H), ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
@@ -448,7 +448,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
     if verbose:
         print("\n------Proposed_MU_KL running------")
 
@@ -508,7 +508,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
 
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))

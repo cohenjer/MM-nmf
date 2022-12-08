@@ -12,6 +12,7 @@ import soundfile as sf
 from scipy import signal
 import scipy.io
 import plotly.express as px
+import time
 
 from shootout.methods import runners as rn
 from shootout.methods import post_processors as pp
@@ -52,8 +53,8 @@ Wref = np.transpose(Wref['References'])
 #from tensorly.tenalg.proximal import fista
 
 algs = ["Proposed_l2_delta1.8", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS", "Lee_Sung_KL", "Proposed_KL"]
-name = "hsi_nls_test_06_12_2022"
-Nb_seeds = 3
+name = "hsi_nls_test_08_12_2022"
+Nb_seeds = 10
 
 @rn.run_and_track(
     nb_seeds=Nb_seeds,
@@ -75,11 +76,18 @@ def one_run(NbIter = 100,
     error1, H1, toc1 = nls_f.NeNMF_optimMajo(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
     error2, H2, toc2 = nls_f.Grad_descent(M , Wref, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta)
     error3, H3, toc3 = nls_f.NeNMF(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Wref.T@M, Wref.T@Wref, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=M)
+    
+    # HALS is unfair because we compute things before. We add the time needed for this back after the algorithm
+    tic = time.perf_counter()
+    WtV = Wref.T@M
+    WtW = Wref.T@Wref
+    toc4_offset = time.perf_counter() - tic
+    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(WtV, WtW, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=M)
+    toc4 = [toc4[i] + toc4_offset for i in range(len(toc4))] # leave the 0 in place for init
+    toc4[0]=0
 
     error5, H5, toc5 = nls_kl.Lee_Seung_KL(M, Wref, Hini, NbIter=NbIter, verbose=True, delta=delta)
     error6, H6, toc6 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=True, delta=delta)
-    print(np.mean(H0))
 
     return {
         "errors": [error0,error1,error2,error3,error4, error5, error6],

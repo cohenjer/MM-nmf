@@ -81,10 +81,10 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, t
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
-    error = [la.norm(V- W@H)/error_norm]
-    Vnorm_sq = np.linalg.norm(V)**2
+    error = [la.norm(V- W@H,'fro')/error_norm]
+    Vnorm_sq = np.linalg.norm(V,'fro')**2
     toc = [0] 
-    tic = time.time()
+    tic = time.perf_counter()
     cnt = []
 
     if verbose:
@@ -130,7 +130,7 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, t
         # compute the error
         err = compute_error(Vnorm_sq,W,HHt,VHt,error_norm)
         error.append(err)
-        toc.append(time.time() - tic)
+        toc.append(time.perf_counter() - tic)
         if verbose:
             if k%print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
@@ -199,10 +199,10 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
     else:
         gamma = 1.9
     error_norm = np.prod(V.shape)
-    error = [la.norm(V-W.dot(H))/error_norm]
-    Vnorm_sq = np.linalg.norm(V)**2
+    error = [la.norm(V-W.dot(H),'fro')/error_norm]
+    Vnorm_sq = np.linalg.norm(V,'fro')**2
     toc = [0] 
-    tic = time.time()
+    tic = time.perf_counter()
     cnt = []
 
     if verbose:
@@ -213,7 +213,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         # FIXED W ESTIMATE H
         A1 = W.T.dot(W)
         B1 = W.T@V
-        sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None]) # C'EST ICI QUE J'AI CHANGÉ
+        sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None])
         aux_H = sqrtB1/A1.dot(sqrtB1)        
         inner_change_0 = 1
         inner_change_l = np.Inf
@@ -237,7 +237,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         # FIXED H ESTIMATE W
         A2 = H.dot(H.T)
         B2 = V@H.T
-        sqrtB2 = np.sqrt(B2/np.sum(H,axis=1)) # C'EST ICI QUE J'AI CHANGÉ
+        sqrtB2 = np.sqrt(B2/np.sum(H,axis=1))
         aux_W = sqrtB2/sqrtB2.dot(A2)    
         inner_change_0 = 1
         inner_change_l = np.Inf
@@ -259,7 +259,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
                
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
         error.append(err)
-        toc.append(time.time() - tic)
+        toc.append(time.perf_counter() - tic)
         if verbose:
             if k%print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
@@ -313,10 +313,10 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbo
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
-    error = [la.norm(V- W.dot(H))/error_norm]
-    Vnorm_sq = np.linalg.norm(V)**2
+    error = [la.norm(V- W.dot(H),'fro')/error_norm]
+    Vnorm_sq = np.linalg.norm(V,'fro')**2
     toc = [0] 
-    tic = time.time()
+    tic = time.perf_counter()
     cnt = []
 
     if verbose:
@@ -363,7 +363,7 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbo
         # compute the error 
         err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
         error.append(err)
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
@@ -451,10 +451,10 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
-    error = [la.norm(V- W.dot(H))/error_norm]
-    Vnorm_sq = np.linalg.norm(V)**2
+    error = [la.norm(V- W.dot(H),'fro')/error_norm]
+    Vnorm_sq = np.linalg.norm(V,'fro')**2
     toc = [0] 
-    tic = time.time()
+    tic = time.perf_counter()
     cnt = []
 
     if verbose:
@@ -477,7 +477,7 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose
 
         err = compute_error(Vnorm_sq,W,Ah,VHt,error_norm)
         error.append(err)
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if it%print_it==0:
                 print("Error at iteration {}: {}".format(it+1,err))
@@ -492,10 +492,10 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
-    error = [la.norm(V- W.dot(H))/error_norm]
-    Vnorm_sq = np.linalg.norm(V)**2
+    error = [la.norm(V- W.dot(H),'fro')/error_norm]
+    Vnorm_sq = np.linalg.norm(V,'fro')**2
     toc = [0] 
-    tic = time.time()
+    tic = time.perf_counter()
     cnt_inner = []
     if verbose:
         print("\n--------- MU extrapolated proposed running ----------")
@@ -506,7 +506,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=
         
         A1 = W.T.dot(W)
         B1 = W.T@V       
-        sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None]) # C'EST ICI QUE J'AI CHANGÉ
+        sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None])
         Lw = sqrtB1/A1.dot(sqrtB1)        
         if use_LeeS:
             Lw = np.maximum(Lw, 1/la.norm(A1,2))
@@ -519,7 +519,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=
         
         A2 = H.dot(H.T)
         B2 = V@H.T
-        sqrtB2 = np.sqrt(B2/np.sum(H,axis=1)) # C'EST ICI QUE J'AI CHANGÉ
+        sqrtB2 = np.sqrt(B2/np.sum(H,axis=1))
         # TODO: removed epsilon in denom OK?
         Lh = sqrtB2/sqrtB2.dot(A2)    
         if use_LeeS:
@@ -529,7 +529,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=
         cnt_inner.append(out_cnt)
         err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
         error.append(err)
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if it%print_it==0:
                 print("Error at iteration {}: {}".format(it+1,err))
@@ -641,40 +641,40 @@ if __name__ == '__main__':
         verbose=True
         delta=0.3
 
-        time_start0 = time.time()
+        time_start0 = time.perf_counter()
         error0, W0, H0, toc0, cnt0 = NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol, verbose=verbose, delta=delta)
-        time0 = time.time() - time_start0
+        time0 = time.perf_counter() - time_start0
         Error0[s] = error0[-1] 
         NbIterStop0[s] = len(error0)
         
       
-        time_start4 = time.time()
+        time_start4 = time.perf_counter()
         error4, W4, H4, toc4, cnt4  = NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, verbose=verbose, use_LeeS=True, delta=delta)
-        time4 = time.time() - time_start4
+        time4 = time.perf_counter() - time_start4
         Error4[s] = error4[-1] 
         NbIterStop4[s] = len(error4)
         
         
         
-        time_start1 = time.time()
+        time_start1 = time.perf_counter()
         error1, W1, H1, toc1, cnt1 = NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, verbose=verbose, use_LeeS=False, delta=delta)
-        time1 = time.time() - time_start1
+        time1 = time.perf_counter() - time_start1
         Error1[s] = error1[-1] 
         NbIterStop1[s] = len(error1)
          
         
         
          
-        time_start2 = time.time()
+        time_start2 = time.perf_counter()
         error2, W2, H2, toc2, cnt2  = Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol, verbose=verbose, delta=delta)
-        time2 = time.time() - time_start1
+        time2 = time.perf_counter() - time_start1
         Error2[s] = error2[-1] 
         NbIterStop2[s] = len(error2)
         
         
-        time_start3 = time.time()
+        time_start3 = time.perf_counter()
         error3, W3, H3, toc3, cnt3  = NeNMF(V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, verbose=verbose, delta=delta)
-        time3 = time.time() - time_start3
+        time3 = time.perf_counter() - time_start3
         Error3[s] = error3[-1]
         NbIterStop3[s] = len(error3)
     

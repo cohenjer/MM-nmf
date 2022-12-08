@@ -99,7 +99,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n------Lee_Sung_KL running------")
@@ -128,7 +128,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
  
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
@@ -186,7 +186,7 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
     if verbose:
         print("\n------Proposed_MU_KL running------")
 
@@ -223,7 +223,7 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
 
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))

@@ -16,6 +16,7 @@ import plotly.express as px
 from shootout.methods.runners import run_and_track
 import shootout.methods.post_processors as pp
 from utils import sparsify
+import time
 '''
  W is a dictionary of 88 columns and 4097 frequency bins. Each column was obtained by performing a rank-one NMF (todo correct) on the recording of a single note in the MAPS database, on a Yamaha Disklavier with close microphones, the note was played mezzo forte and the loss was beta-divergence with beta=1.
 
@@ -72,8 +73,8 @@ rank = 88*2 # one template per note only for speed
 #Y = Wgt@Htrue + 1e-3*np.random.rand(*Y.shape)
 
 # Shootout config
-name = "audio_nls_test_06-12-2022(KL only)"
-Nb_seeds = 2
+name = "audio_nls_test_08-12-2022"
+Nb_seeds = 10
 df = pd.DataFrame()
 algs = ["Proposed_l2_gamma1.9", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS", "Lee_Sung_KL", "Proposed_KL(max)"]
 @run_and_track(
@@ -101,7 +102,15 @@ def one_run(rank = rank,
     error1, H1, toc1 = nls_f.NeNMF_optimMajo(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
     error2, H2, toc2 = nls_f.Grad_descent(Y , Wgt, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta)
     error3, H3, toc3 = nls_f.NeNMF(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Wgt.T@Y, Wgt.T@Wgt, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=Y)
+
+    # HALS is unfair because we compute things before. We add the time needed for this back after the algorithm
+    tic = time.perf_counter()
+    WtV = Wgt.T@Y
+    WtW = Wgt.T@Wgt
+    toc4_offset = time.perf_counter() - tic
+    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(WtV, WtW, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=Y)
+    toc4 = [toc4[i] + toc4_offset for i in range(len(toc4))] # leave the 0 in place for init
+    toc4[0]=0
 
     # KL algorithms
     error5, H5, toc5 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta)

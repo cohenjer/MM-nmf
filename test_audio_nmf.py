@@ -71,7 +71,7 @@ rank = 88*2 # one template per note only for speed
 #Htrue = sparsify(np.random.rand(rank,n),0.5)
 #Y = Wgt@Htrue + 1e-3*np.random.rand(*Y.shape)
 
-name = "audio_test_20-09-2022"
+name = "audio_test_08-12-2022"
 
 df = pd.DataFrame()
 

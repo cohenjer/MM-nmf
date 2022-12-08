@@ -18,7 +18,7 @@ plt.close('all')
 algs = ["Lee_Sung", "Proposed_with_max", "Proposed_no_max"]
 nb_seeds = 10  # Change this to >0 to run experiments
 
-name = "KL_nls_run_06-12-2022"
+name = "KL_nls_run_07-12-2022DUMMY"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 add_track = {"distribution" : "uniform"},
                 nb_seeds=nb_seeds,
@@ -69,7 +69,7 @@ df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True)
 
 # We will show convergence plots for various sigma values, with only n=100
 ovars = ["mnr", "SNR"]
-df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars,err_name="errors_interp", time_name="timings_interp")
+df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars, err_name="errors_interp", time_name="timings_interp")
 df_conv = df_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 
 # Median plot
