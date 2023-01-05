@@ -117,7 +117,7 @@ def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, p
 #------------------------------------
 #  NMF algorithm proposed version
 
-def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_LeeS=True, print_it=100, delta=np.Inf):
+def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_LeeS=True, print_it=100, delta=np.Inf, gamma=1.9):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -162,9 +162,7 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
     H = H0.copy()
     # TODO: Discuss
     if use_LeeS:
-        gamma = 1#1.9
-    else:
-        gamma = 1.9
+        gamma = gamma #1
     error_norm = np.prod(V.shape)
     error = [la.norm(V-W.dot(H))/error_norm]
     Vnorm_sq = np.linalg.norm(V)**2
@@ -209,7 +207,7 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
 
 ################## Gradient descent method
 
-def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf):
+def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9):
     
     """"
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -227,6 +225,8 @@ def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, de
         the maximum number of iterations.
     tol: float
         stopping criterion, algorithm stops if error<tol.
+    gamma: float
+        stepsize (multiplied by inverse of Lipschitz constant), default 1.9 (aggressive)
     
     Returns
     -------
@@ -252,7 +252,6 @@ def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, de
         print("\n--------- Gradient Descent running ----------")
      
     #inner_iter_total = 0 
-    gamma = 1.9
     # FIXED W ESTIMATE H
     Aw = W.T.dot(W)      
     normAw = la.norm(Aw,2)
@@ -345,7 +344,7 @@ def NeNMF(V, W, H0, itermax=10000, epsilon=1e-8, verbose=False, print_it=100, de
     return error, H, toc
 
 
-def NeNMF_optimMajo(V, W, H0, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_LeeS=True, delta=np.Inf):
+def NeNMF_optimMajo(V, W, H0, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_best=False, delta=np.Inf):
     
     H = H0.copy()
     if verbose:
@@ -356,7 +355,7 @@ def NeNMF_optimMajo(V, W, H0, itermax = 10000, print_it=100, epsilon=1e-8, verbo
     B1 = W.T@V
     sqrtB1 =np.sqrt(B1)
     Lw = sqrtB1/A1.dot(sqrtB1)        
-    if use_LeeS:
+    if use_best:
         Lw = np.maximum(Lw, 1/la.norm(A1,2))
         
     H, error, toc = OGM_H(B1, H, A1, Lw, itermax, epsilon, delta, V, W, verbose=verbose)

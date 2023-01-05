@@ -66,3 +66,9 @@
 - TODOS:
   - write xp in article
   - benchmark nmf --> use to compare with toolboxes? (more code...)
+
+# Jeremy, 05 Janvier 2023
+
+- Checks de gammas : c le bordel
+  - gamma manquant dans NMF KL non min
+  - extrapol avec un max avec 1/L pas utile
