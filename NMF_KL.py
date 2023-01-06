@@ -99,7 +99,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n------Lee_Sung_KL running------")
@@ -154,7 +154,7 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
         
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
@@ -209,7 +209,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n------Fevotte_Idier_KL running------")
@@ -265,7 +265,7 @@ def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, e
         H = np.maximum(H * scale[:,None], epsilon)
                
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
@@ -356,7 +356,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
     TODO
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n------NeNMF_KL running------")
@@ -384,7 +384,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
         cnt.append(cnt)
         
         crit.append(compute_error(V, W.dot(H), ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
@@ -448,7 +448,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
     if verbose:
         print("\n------Proposed_MU_KL running------")
 
@@ -470,12 +470,12 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
         inner_change_l = np.Inf
         sum_H = np.sum(H, axis = 1)[None,:] 
         sum_H2= np.sum(H, axis = 0)[None,:]
-        aux_W = 1/(Vinv.dot((H*sum_H2).T))
+        aux_W = gamma*1/(Vinv.dot((H*sum_H2).T))
         for iw in range(nb_inner): 
             if use_LeeS:
                 deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
             else:
-                deltaW = np.maximum(gamma*aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
+                deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
             W = W + deltaW
             WH = W.dot(H)
             if iw==0:
@@ -493,12 +493,12 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
         inner_change_0 = 1
         inner_change_l = np.Inf
         
-        aux_H =   1/((W*sum_W2).T.dot(Vinv))
+        aux_H =   gamma*1/((W*sum_W2).T.dot(Vinv))
         for ih in range(nb_inner):
             if use_LeeS:
                 deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
             else:
-                deltaH = np.maximum(gamma*aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+                deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
             H = H + deltaH
             WH = W.dot(H)
             if ih==0:
@@ -512,7 +512,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
 
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))

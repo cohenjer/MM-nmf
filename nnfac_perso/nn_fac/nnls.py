@@ -152,7 +152,7 @@ def hals_nnls_acc(UtM, UtU, in_V, maxiter=500, atime=None, alpha=0.5, delta=0.01
     eps = 1
 
     # Start timer
-    tic = time.time()
+    tic = time.perf_counter()
     # tracking time
     if return_error:
         # TODO error message if M not provided
@@ -195,7 +195,7 @@ def hals_nnls_acc(UtM, UtU, in_V, maxiter=500, atime=None, alpha=0.5, delta=0.01
         if cnt == 1:
             eps0 = nodelta
             # End timer for one iteration
-            btime = max(time.time() - tic, 10e-7) # Avoid division by 0
+            btime = max(time.perf_counter() - tic, 10e-7) # Avoid division by 0
 
             if atime:  # atime is provided
                 # Number of loops authorized
@@ -206,7 +206,7 @@ def hals_nnls_acc(UtM, UtU, in_V, maxiter=500, atime=None, alpha=0.5, delta=0.01
         # compute error, track time
         if return_error:
             error.append(np.sqrt(np.abs(Mnorm_sq - 2*np.sum(UtM*V) +  np.sum(UtU*(V@V.T))))/error_norm)
-            toc.append(time.time()-tic)
+            toc.append(time.perf_counter()-tic)
 
     if return_error:
         return V, eps, cnt, rho, error, toc
@@ -323,7 +323,7 @@ def hals_coupling_nnls_acc(UtM, UtU, in_V, Vtarget, mu,
     eps = 1
 
     # Start timer
-    tic = time.time()
+    tic = time.perf_counter()
     while cnt <= maxiter and eps >= delta * eps0 and cnt <= 1+alpha*rho:
         nodelta = 0
         for k in range(r):
@@ -357,7 +357,7 @@ def hals_coupling_nnls_acc(UtM, UtU, in_V, Vtarget, mu,
         if cnt == 1:
             eps0 = nodelta
             # End timer for one iteration
-            btime = max(time.time() - tic, 10e-7) # Avoid division by 0
+            btime = max(time.perf_counter() - tic, 10e-7) # Avoid division by 0
 
             if atime:  # atime is provided
                 # Number of loops authorized
@@ -488,7 +488,7 @@ def BETA_hals_sparse_smooth_nnls_acc(UtM, UtU, in_V, LtL_in, sp = 1e-7, sm = 1e-
     eps = 1
 
     # Start timer
-    tic = time.time()
+    tic = time.perf_counter()
     while eps >= delta * eps0 and cnt <= 1+alpha*rho and cnt <= maxiter:
         nodelta = 0
         for k in range(r):
@@ -524,7 +524,7 @@ def BETA_hals_sparse_smooth_nnls_acc(UtM, UtU, in_V, LtL_in, sp = 1e-7, sm = 1e-
         if cnt == 1:
             eps0 = nodelta
             # End timer for one iteration
-            btime = max(time.time() - tic, 10e-7) # Avoid division by 0
+            btime = max(time.perf_counter() - tic, 10e-7) # Avoid division by 0
 
             if atime:  # atime is provided
                 # Number of loops authorized
@@ -695,7 +695,7 @@ def BETA_hals_sparse_nnls_acc(UtM, UtU, in_V, sparsity, sparsity_coefficient, ma
         raise ValueError("In the case of hard sparsity, the sparsity_coefficient needs to be an integer.")
 
     # Start timer
-    tic = time.time()
+    tic = time.perf_counter()
     while eps >= delta * eps0 and cnt <= 1+alpha*rho and cnt <= maxiter:
         nodelta = 0
         for k in range(r):
@@ -760,7 +760,7 @@ def BETA_hals_sparse_nnls_acc(UtM, UtU, in_V, sparsity, sparsity_coefficient, ma
         if cnt == 1:
             eps0 = nodelta
             # End timer for one iteration
-            btime = max(time.time() - tic, 10e-7) # Avoid division by 0
+            btime = max(time.perf_counter() - tic, 10e-7) # Avoid division by 0
 
             if atime:  # atime is provided
                 # Number of loops authorized

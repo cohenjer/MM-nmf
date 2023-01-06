@@ -15,6 +15,8 @@ import plotly.express as px
 # personal toolbox
 from shootout.methods.runners import run_and_track
 import shootout.methods.post_processors as pp
+from utils import sparsify
+import time
 '''
  W is a dictionary of 88 columns and 4097 frequency bins. Each column was obtained by performing a rank-one NMF (todo correct) on the recording of a single note in the MAPS database, on a Yamaha Disklavier with close microphones, the note was played mezzo forte and the loss was beta-divergence with beta=1.
 
@@ -33,30 +35,28 @@ import shootout.methods.post_processors as pp
 
 # Importing data and computing STFT using the Attack-Decay paper settings
 # Read the song (you can use your own!)
-the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-bk_xmas1_ENSTDkCl.wav')
+the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-bach_847_AkPnBcht.wav')
 # Using the settings of the Attack-Decay transcription paper
-the_signal = the_signal[:,0] + the_signal[:,1] # summing left and right channels
+the_signal = the_signal[:,0] # left channel only
 frequencies, time_atoms, Y = signal.stft(the_signal, fs=sampling_rate_local, nperseg=4096, nfft=8192, noverlap=4096 - 882)
 time_step = time_atoms[1] #20 ms
 freq_step = frequencies[1] #5.3 hz
 #time_atoms = time_atoms # ds scale
-# Taking the power spectrogram
-Y = np.abs(Y)**2
-# Normalization
-Y = Y/np.linalg.norm(Y,'fro')
-# adding some constant noise for avoiding zeros
-#Y = Y+1e-8
-# Cutting silence, end song and high frequencies (>10600 Hz)
-cutf = 2000
+# Taking the amplitude spectrogram
+Y = np.abs(Y)
+# Cutting silence, end song and high frequencies (>5300 Hz)
+cutf = 1000
 cutt_in = int(1/time_step) # song beginning after 1 second
 cutt_out = int(30/time_step)# 30seconds with 20ms steps #time_atoms.shape[0]
 Y = Y[:cutf, cutt_in:cutt_out]
 # normalization
-Y = Y/np.linalg.norm(Y, 'fro')
+#Y = Y/np.linalg.norm(Y, 'fro')
 
 # -------------------- For NNLS -----------------------
 # Importing a good dictionnary for the NNLS part
-Wgt = np.load('./data_and_scripts/attack_dict_piano_ENSTDkCl_beta_1_stftAD_True_intensity_M.npy')
+Wgt_attack = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+Wgt_decay = np.load('./data_and_scripts/decay_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+Wgt = np.concatenate((Wgt_attack,Wgt_decay),axis=1)
 # Also cutting the dictionary
 Wgt = Wgt[:cutf,:]
 # -----------------------------------------------------
@@ -65,14 +65,15 @@ Wgt = Wgt[:cutf,:]
 #------------------------------------------------------------------
 # Computing the NMF to try and recover activations and templates
 m, n = Y.shape
-Nb_seeds = 1
-rank = 88
+rank = 88*2 # one template per note only for speed
+#Wgt = Wgt[:,:rank]
 
 name = "audio_nls_test_01-06-2023"
 
+# Shootout config
+name = "audio_nls_test_08-12-2022"
+Nb_seeds = 10
 df = pd.DataFrame()
-
-Wgt = Wgt[:,:rank]
 
 algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_l2", "NeNMF_l2", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
 
@@ -83,8 +84,8 @@ algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_l2", "NeNMF_l2", "M
     name_store=name,
     seeded_fun=True,
 )
-def one_run(rank = 88,
-            NbIter = 100,
+def one_run(rank = rank,
+            NbIter = 200,
             sigma = 1,
             delta=0, # NLS test, no early stopping
             epsilon = 1e-8,
@@ -98,15 +99,23 @@ def one_run(rank = 88,
 
     # Frobenius algorithms
     # init fastMU with few steps of MU
-    error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True, gamma=1.9)
-    error1, H1, toc1, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=True, delta=delta, verbose=True, gamma=1)
+    error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True, epsilon=epsilon, gamma=1.9)
+    error1, H1, toc1, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=True, delta=delta, verbose=True, epsilon=epsilon, gamma=1)
     error2, H2, toc2 = nls_f.NeNMF_optimMajo(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
     error3, H3, toc3 = nls_f.Grad_descent(Y , Wgt, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta, gamma=1.9)
     error4, H4, toc4 = nls_f.NeNMF(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
     error5, H5, toc5 = nls_f.NMF_Lee_Seung(Y,  Wgt, Hini, NbIter, legacy=False, delta=delta, verbose=True, epsilon=epsilon)
-    H6, _, _, _, error6, toc6 = nn_fac.nnls.hals_nnls_acc(Wgt.T@Y, Wgt.T@Wgt, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=Y)
+    # HALS is unfair because we compute things before. We add the time needed for this back after the algorithm
+    tic = time.perf_counter()
+    WtV = Wgt.T@Y
+    WtW = Wgt.T@Wgt
+    toc6_offset = time.perf_counter() - tic
+    H6, _, _, _, error6, toc6 = nn_fac.nnls.hals_nnls_acc(WtV, WtW, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=Y)
+    toc6 = [toc6[i] + toc6_offset for i in range(len(toc6))] # leave the 0 in place for init
+    toc6[0]=0
 
     # KL algorithms
+    # Trying to use few iterations of MU to start fastMU
 #    error7, H7, toc7 = nls_kl.Lee_Seung_KL(Y,  Wgt, Hini, NbIter=nit_mu, delta=delta, verbose=True, epsilon=epsilon)
 #    error71, H71, toc71, = nls_kl.Proposed_KL(Y, Wgt, H7, NbIter=NbIter-nit_mu, use_LeeS=False, delta=delta, verbose=True, gamma=1.9)
 #    error7 = error7[:-1]+error71[(nit_mu-1):] # use error from Proposed
@@ -114,7 +123,6 @@ def one_run(rank = 88,
     error8, H8, toc8 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta, epsilon=epsilon)
     error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon)
     error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=False, gamma=1.9,  epsilon=epsilon)
-#    print(len(error7),len(toc7),len(error8),len(toc8))
 
 
     return {
@@ -135,7 +143,7 @@ df = pd.read_pickle("Results/"+name)
 #scores_time, scores_it, timings, iterations = find_best_at_all_thresh(df,thresh, Nb_seeds)
 
 # Interpolating
-df = pp.interpolate_time_and_error(df, npoints = 40, adaptive_grid=True)
+df = pp.interpolate_time_and_error(df, npoints = 200, adaptive_grid=True)
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100

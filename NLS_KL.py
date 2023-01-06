@@ -9,8 +9,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from numpy import linalg as la
 from scipy.special import kl_div
-
-
 import time
 
 
@@ -19,6 +17,7 @@ import time
 def compute_error(V, WH, ind0=None, ind1=None):
     """
     Elementwise Kullback Leibler divergence
+    TODO: replace with better one to avoid problems with log0
 
     Parameters
     ----------
@@ -98,7 +97,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n------Lee_Sung_KL running------")
@@ -127,7 +126,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
  
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
@@ -144,8 +143,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
 ############################################################################
 
     
-def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
-                NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9):
+def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -185,7 +183,7 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.perf_counter()
     if verbose:
         print("\n------Proposed_MU_KL running------")
 
@@ -198,19 +196,19 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
     inner_change_0 = 1
     inner_change_l = np.Inf
 
-    sum_W = np.sum(W, axis=0)[:,None]
-    sum_W2= np.sum(W, axis=1)[:,None]
-    aux_H =   1/((W*sum_W2).T.dot(Vinv))
-
     if use_LeeS:
         gamma = 1
+
+    sum_W = np.sum(W, axis=0)[:,None]
+    sum_W2= np.sum(W, axis=1)[:,None]
+    aux_H = gamma*1/((W*sum_W2).T.dot(Vinv))
 
     for k in range(NbIter):
         # FIXED W ESTIMATE H        
         if use_LeeS:
             deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
         else:
-            deltaH = np.maximum(gamma*aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+            deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
         H = H + deltaH
         WH = W.dot(H)
         if k==0:
@@ -222,7 +220,7 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
 
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))

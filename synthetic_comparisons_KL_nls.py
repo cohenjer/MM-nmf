@@ -48,7 +48,7 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, verbose=True, show_it=10
     # One noise, one init; NMF is not unique and nncvx so we will find several results
     error0, H0, toc0 = nls_kl.Lee_Seung_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta)
     error1, H1, toc1 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=True, gamma=1)
-    error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=False)
+    error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=False, gamma=1.9)
 
     return {"errors" : [error0, error1, error2], 
             "timings" : [toc0, toc1, toc2],
@@ -69,7 +69,7 @@ df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True)
 
 # We will show convergence plots for various sigma values, with only n=100
 ovars = ["mnr", "SNR"]
-df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars,err_name="errors_interp", time_name="timings_interp")
+df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars, err_name="errors_interp", time_name="timings_interp")
 df_conv = df_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 
 # Median plot
