@@ -19,7 +19,7 @@ plt.close('all')
 algs = ["Proposed-testing delta and inner iters"]
 nb_seeds = 10  # Change this to >0 to run experiments
 
-name = "Fro_run_delta-choice-21-09-2022"
+name = "Fro_run_delta-choice-08-12-2022"
 variables = {
     'mnr' : [[200,100,5]],
     'NbIter_inner' : [100],

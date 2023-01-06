@@ -76,11 +76,8 @@ def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, p
  
     
     H = H0.copy()
-    error_norm = np.prod(V.shape)
-    error = [la.norm(V- W@H)/error_norm]
-    Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n--------- MU Lee and Sung running ----------")
@@ -91,6 +88,10 @@ def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, p
     # FIXED W ESTIMATE H      
     WtW = W.T@W
     WtV = W.T@V
+
+    error_norm = np.prod(V.shape)
+    Vnorm_sq = np.linalg.norm(V)**2
+    error = [compute_error(Vnorm_sq,WtW,H,WtV,error_norm)]
 
     for k in range(NbIter):
         deltaH = np.maximum(H*(WtV/(WtW.dot(H)) - 1), epsilon-H)
@@ -106,7 +107,7 @@ def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, p
         # compute the error
         err = compute_error(Vnorm_sq,WtW,H,WtV,error_norm)
         error.append(err)
-        toc.append(time.time() - tic)
+        toc.append(time.perf_counter() - tic)
         if verbose:
             if k%print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
@@ -160,14 +161,10 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
     """
     
     H = H0.copy()
-    # TODO: Discuss
     if use_LeeS:
-        gamma = gamma #1
-    error_norm = np.prod(V.shape)
-    error = [la.norm(V-W.dot(H))/error_norm]
-    Vnorm_sq = np.linalg.norm(V)**2
+        gamma = 1
     toc = [0] 
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n--------- MU proposed running ----------")
@@ -175,8 +172,13 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
     # FIXED W ESTIMATE H
     A1 = W.T.dot(W)
     B1 = W.T@V
-    sqrtB1 =np.sqrt(B1)
+    sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None])
     aux_H = sqrtB1/A1.dot(sqrtB1)        
+
+    error_norm = np.prod(V.shape)
+    Vnorm_sq = np.linalg.norm(V)**2
+    error = [compute_error(Vnorm_sq,A1,H,B1,error_norm)]
+    
     inner_change_0 = 1
     inner_change_l = np.Inf
     for k in range(NbIter):
@@ -198,7 +200,7 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
 
         err = compute_error(Vnorm_sq,A1,H,B1,error_norm)
         error.append(err)
-        toc.append(time.time() - tic)
+        toc.append(time.perf_counter() - tic)
         if verbose:
             if k%print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
@@ -242,11 +244,8 @@ def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, de
     """
     
     H = H0.copy()
-    error_norm = np.prod(V.shape)
-    error = [la.norm(V- W.dot(H))/error_norm]
-    Vnorm_sq = np.linalg.norm(V)**2
     toc = [0] 
-    tic = time.time()
+    tic = time.perf_counter()
 
     if verbose:
         print("\n--------- Gradient Descent running ----------")
@@ -256,6 +255,11 @@ def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, de
     Aw = W.T.dot(W)      
     normAw = la.norm(Aw,2)
     WtV = W.T.dot(V)
+
+    error_norm = np.prod(V.shape)
+    Vnorm_sq = np.linalg.norm(V)**2
+    error = [compute_error(Vnorm_sq,Aw,H,WtV,error_norm)]
+
     inner_change_0 = 1
     inner_change_l = np.Inf
     for k in range(NbIter):
@@ -271,7 +275,7 @@ def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, de
         # compute the error 
         err = compute_error(Vnorm_sq,Aw,H,WtV,error_norm)
         error.append(err)
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if k%print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
@@ -292,14 +296,14 @@ def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, de
 
  
 
-def OGM_H(WtV, H, Aw, L, nb_inner, epsilon, delta, V, W, print_it=100, verbose=False):
+def OGM_H(WtV, H, Aw, L, nb_inner, epsilon, delta, V, W, print_it=100, verbose=False, tic=time.perf_counter()):
     # V≈WH, W≥O, H≥0
     # updates H        
     error_norm = np.prod(V.shape)
-    error = [la.norm(V- W.dot(H))/error_norm]
     Vnorm_sq = np.linalg.norm(V)**2
+    error = [compute_error(Vnorm_sq,Aw,H,WtV,error_norm)]
     toc = [0]
-    tic = time.time() 
+    #tic = time.perf_counter() 
     Y = H.copy()
     alpha = 1
     inner_change_0 = 1
@@ -321,7 +325,7 @@ def OGM_H(WtV, H, Aw, L, nb_inner, epsilon, delta, V, W, print_it=100, verbose=F
         # compute the error 
         err = compute_error(Vnorm_sq,Aw,H,WtV,error_norm)
         error.append(err)
-        toc.append(time.time()-tic)
+        toc.append(time.perf_counter()-tic)
         if verbose:
             if ih%print_it==0:
                 print("Error at iteration {}: {}".format(ih+1,err))
@@ -331,7 +335,8 @@ def OGM_H(WtV, H, Aw, L, nb_inner, epsilon, delta, V, W, print_it=100, verbose=F
 
          
 def NeNMF(V, W, H0, itermax=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf):
-
+    
+    tic = time.perf_counter()
     H = H0.copy()
     if verbose:
         print("\n--------- NeNMF running ----------")
@@ -339,25 +344,25 @@ def NeNMF(V, W, H0, itermax=10000, epsilon=1e-8, verbose=False, print_it=100, de
     Aw = W.T.dot(W)
     Lw = 1/la.norm(Aw,2)
     WtV = W.T@V
-    H, error, toc = OGM_H(WtV, H, Aw, Lw, itermax, epsilon, delta, V, W, verbose=verbose)
+    H, error, toc = OGM_H(WtV, H, Aw, Lw, itermax, epsilon, delta, V, W, verbose=verbose, tic=tic)
 
     return error, H, toc
 
 
 def NeNMF_optimMajo(V, W, H0, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_best=False, delta=np.Inf):
     
+    tic = time.perf_counter()
     H = H0.copy()
     if verbose:
         print("\n--------- MU extrapolated proposed running ----------")
-    it = 0
 
     A1 = W.T.dot(W)
     B1 = W.T@V
-    sqrtB1 =np.sqrt(B1)
+    sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None])
     Lw = sqrtB1/A1.dot(sqrtB1)        
     if use_best:
         Lw = np.maximum(Lw, 1/la.norm(A1,2))
         
-    H, error, toc = OGM_H(B1, H, A1, Lw, itermax, epsilon, delta, V, W, verbose=verbose)
+    H, error, toc = OGM_H(B1, H, A1, Lw, itermax, epsilon, delta, V, W, verbose=verbose, tic=tic)
 
     return error, H, toc

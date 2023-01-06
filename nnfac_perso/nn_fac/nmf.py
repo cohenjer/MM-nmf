@@ -277,7 +277,7 @@ def compute_nmf(data, rank, U_in, V_in, n_iter_max=100, tol=1e-8,
     V = V_in.copy()
     cost_fct_vals = [np.linalg.norm(data - U@V)/np.prod(data.shape)]
     norm_data = np.linalg.norm(data)
-    tic = time.time()
+    tic = time.perf_counter()
     toc = [0]
     cnt = []
     print_it = 100
@@ -295,7 +295,7 @@ def compute_nmf(data, rank, U_in, V_in, n_iter_max=100, tol=1e-8,
         U, V, cost, last_cnt = one_nmf_step(data, rank, U, V, norm_data, update_rule, beta,
                                   sparsity_coefficients, fixed_modes, normalize, NbIter_inner=NbIter_inner, delta=delta)
 
-        toc.append(time.time() - tic)
+        toc.append(time.perf_counter() - tic)
         cnt.append(last_cnt)
         cost_fct_vals.append(cost)
 
@@ -399,14 +399,14 @@ def one_nmf_step(data, rank, U_in, V_in, norm_data, update_rule, beta,
         
         if update_rule == "hals":
             # Set timer for acceleration in hals_nnls_acc
-            tic = time.time()
+            tic = time.perf_counter()
     
             # Computing cross products
             VVt = np.dot(V,np.transpose(V))
             VMt = np.dot(V,np.transpose(data))
     
             # End timer for acceleration in hals_nnls_acc
-            timer = time.time() - tic
+            timer = time.perf_counter() - tic
     
             # Compute HALS/NNLS resolution
             # Modified from original:
@@ -425,14 +425,14 @@ def one_nmf_step(data, rank, U_in, V_in, norm_data, update_rule, beta,
 
         if update_rule == "hals":
             # Set timer for acceleration in hals_nnls_acc
-            tic = time.time()
+            tic = time.perf_counter()
     
             # Computing cross products
             UtU = np.dot(np.transpose(U),U)
             UtM = np.dot(np.transpose(U),data)
     
             # End timer for acceleration in hals_nnls_acc
-            timer = time.time() - tic
+            timer = time.perf_counter() - tic
     
             # Compute HALS/NNLS resolution
             V, _, cnt, _ = nnls.hals_nnls_acc(UtM, UtU, V_in, maxiter=NbIter_inner, atime=None, alpha=0.5, delta=delta,
