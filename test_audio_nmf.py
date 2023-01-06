@@ -102,22 +102,23 @@ def one_run(rank = 88,
     Hini = use_gt*Hgt + pert_sigma*np.random.rand(rank, n)
 
     # Frobenius algorithms
-    #error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(Y,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon, verbose=True, delta=delta)   
     error0, W0, H0, toc0, cnt0 = nmf_f.NMF_proposed_Frobenius(Y, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=True)
     error1, W1, H1, toc1, cnt1  = nmf_f.NeNMF_optimMajo(Y, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon, verbose=True, delta=delta)
     error2, W2, H2, toc2, cnt2  = nmf_f.Grad_descent(Y , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon, verbose=True, delta=delta)
     error3, W3, H3, toc3, cnt3  = nmf_f.NeNMF(Y, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    W4, H4, error4, toc4, cnt4 = nn_fac.nmf.nmf(Y, rank, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner, verbose=True, delta=delta)
+    error4, W4, H4, toc4, cnt4 = nmf_f.NMF_Lee_Seung(Y,  Wgt, Hini, itermax=NbIter, nb_inner=NbIter_inner, legacy=False, verbose=True, delta=delta, epsilon=epsilon)
+    W5, H5, error5, toc5, cnt5 = nn_fac.nmf.nmf(Y, rank, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner, verbose=True, delta=delta)
 
     # KL algorithms
-    error5, W5, H5, toc5, cnt5 = nmf_kl.Lee_Seung_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True)
-    error6, W6, H6, toc6, cnt6 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True)
+    error6, W6, H6, toc6, cnt6 = nmf_kl.Lee_Seung_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True)
+    error7, W7, H7, toc7, cnt7 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True, use_LeeS=True, gamma=1)
+    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True, use_LeeS=False, gamma=1.9)
 
 
     return {
-        "errors": [error0, error1, error2, error3, error4, error5, error6],
-        "timings": [toc0,toc1,toc2,toc3,toc4,toc5,toc6],
-        "loss": 5*["l2"]+2*["kl"],
+        "errors": [error0, error1, error2, error3, error4, error5, error6, error7, error8],
+        "timings": [toc0,toc1,toc2,toc3,toc4,toc5,toc6, toc7, toc8],
+        "loss": 6*["l2"]+3*["kl"],
             }
     
 

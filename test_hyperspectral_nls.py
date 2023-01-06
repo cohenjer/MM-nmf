@@ -37,8 +37,8 @@ M = np.transpose(dico['A']) # permutation because we like spectra in W
 # It can be nice to normalize the data, then absolute error is also relative error
 M = M/np.linalg.norm(M, 'fro')
 # Padding for log
-pad = 1e-16
-M = np.maximum(M,pad)
+#pad = 1e-16
+#M = np.maximum(M,pad)
 
 # Ground truth import
 # https://gitlab.com/nnadisic/giant.jl/-/blob/master/xp/data/Urban_Ref.mat
@@ -64,9 +64,9 @@ Wref2 = Wref#/np.sum(Wref2, axis=0)
 # Solving with nonnegative least squares
 #from tensorly.tenalg.proximal import fista
 
-algs = ["Proposed_l2_delta1.8", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS", "Lee_Sung_KL", "Proposed_KL"]
-name = "hsi_nls_test_06_12_20220"
-Nb_seeds = 1
+algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_l2", "NeNMF_l2", "MU_Fro", "HALS", "MU_KL", "fastMU_min", "fastMU"]
+name = "hsi_nls_test_01_06_2023"
+Nb_seeds = 2
 
 @rn.run_and_track(
     nb_seeds=Nb_seeds,
@@ -77,7 +77,7 @@ Nb_seeds = 1
 def one_run(NbIter = 40,
             sigma = 1,
             delta = 0,
-            epsilon = 1e-8,
+            epsilon = 1e-16,
             seed = 1,
             ):
     # Seeding
@@ -85,20 +85,22 @@ def one_run(NbIter = 40,
     # Init
     Hini = sigma*rng.rand(Wref2.shape[1], M.shape[1])
 
-    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref2, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True)
-    error1, H1, toc1 = nls_f.NeNMF_optimMajo(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    error2, H2, toc2 = nls_f.Grad_descent(M , Wref2, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta)
-    error3, H3, toc3 = nls_f.NeNMF(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Wref2.T@M, Wref2.T@Wref2, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=M)
+    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref2, np.copy(Hini), NbIter, use_LeeS=False, delta=delta, verbose=True, gamma=1.9, epsilon=epsilon)
+    error1, H1, toc1 = nls_f.NMF_proposed_Frobenius(M, Wref2, Hini, NbIter, use_LeeS=True, delta=delta, verbose=True, gamma=1, epsilon=epsilon)
+    error2, H2, toc2 = nls_f.NeNMF_optimMajo(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta, gamma=1)
+    error3, H3, toc3 = nls_f.Grad_descent(M , Wref2, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta, gamma=1.9)
+    error4, H4, toc4 = nls_f.NeNMF(M, Wref2, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
+    error5, H5, toc5 = nls_f.NMF_Lee_Seung(M,  Wref2, Hini, NbIter, legacy=False, delta=delta, verbose=True, epsilon=epsilon)
+    H6, _, _, _, error6, toc6 = nn_fac.nnls.hals_nnls_acc(Wref2.T@M, Wref2.T@Wref2, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=M)#, epsilon=epsilon) not implemented
 
-    error5, H5, toc5 = nls_kl.Lee_Seung_KL(M, Wref2, Hini, NbIter=NbIter, verbose=True, delta=delta)
-    error6, H6, toc6 = nls_kl.Proposed_KL(M, Wref2, Hini, NbIter=NbIter, verbose=True, delta=delta)
-    print(np.mean(H0))
+    error7, H7, toc7 = nls_kl.Lee_Seung_KL(M, Wref2, Hini, NbIter=NbIter, verbose=True, delta=delta, epsilon=epsilon)
+    error8, H8, toc8 = nls_kl.Proposed_KL(M, Wref2, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon)
+    error9, H9, toc9 = nls_kl.Proposed_KL(M, Wref2, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon)
 
     return {
-        "errors": [error0,error1,error2,error3,error4, error5, error6],
-        "timings": [toc0,toc1,toc2,toc3,toc4, toc5, toc6],
-        "loss": 5*["l2"]+2*["kl"],
+        "errors": [error0,error1,error2,error3,error4, error5, error6, error7, error8, error9],
+        "timings": [toc0,toc1,toc2,toc3,toc4, toc5, toc6, toc7, toc8, toc9],
+        "loss": 7*["l2"]+3*["kl"],
     }
 
 

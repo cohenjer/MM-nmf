@@ -197,7 +197,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
     H = H0.copy()
     # TODO: Discuss
     if use_LeeS:
-        gamma = gamma #1
+        gamma = 1
     error_norm = np.prod(V.shape)
     error = [la.norm(V-W.dot(H))/error_norm]
     Vnorm_sq = np.linalg.norm(V)**2
@@ -214,7 +214,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         A1 = W.T.dot(W)
         B1 = W.T@V
         sqrtB1 =np.sqrt(B1)
-        aux_H = sqrtB1/A1.dot(sqrtB1)        
+        aux_H = gamma*sqrtB1/A1.dot(sqrtB1)        
         inner_change_0 = 1
         inner_change_l = np.Inf
         for ih in range(NbIter_inner):
@@ -224,7 +224,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
                 aux_H_used = np.maximum(aux_H, H/A1H)
             else:
                 aux_H_used = aux_H
-            deltaH =  np.maximum(gamma*aux_H_used*(B1 - A1H), epsilon-H)
+            deltaH =  np.maximum(aux_H_used*(B1 - A1H), epsilon-H)
             H = H + deltaH
             if ih==0:
                 inner_change_0 = np.linalg.norm(deltaH)**2
@@ -238,7 +238,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         A2 = H.dot(H.T)
         B2 = V@H.T
         sqrtB2 = np.sqrt(B2)
-        aux_W = sqrtB2/sqrtB2.dot(A2)    
+        aux_W = gamma*sqrtB2/sqrtB2.dot(A2)    
         inner_change_0 = 1
         inner_change_l = np.Inf
         for iw in range(NbIter_inner):
@@ -247,7 +247,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
                 aux_W_used = np.maximum(aux_W, W/WA2)
             else:
                 aux_W_used = aux_W
-            deltaW = np.maximum(gamma*aux_W_used*(B2 - WA2), epsilon-W)
+            deltaW = np.maximum(aux_W_used*(B2 - WA2), epsilon-W)
             W = W + deltaW
             if iw==0:
                 inner_change_0 = np.linalg.norm(deltaW)**2
@@ -489,7 +489,7 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose
     return error, W, H, toc, cnt
 
 
-def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_best=False, delta=np.Inf):
+def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_best=False, delta=np.Inf, gamma=1):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
@@ -508,7 +508,7 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=
         A1 = W.T.dot(W)
         B1 = W.T@V
         sqrtB1 =np.sqrt(B1)
-        Lw = sqrtB1/A1.dot(sqrtB1)        
+        Lw = gamma*sqrtB1/A1.dot(sqrtB1)        
         if use_best:
             Lw = np.maximum(Lw, 1/la.norm(A1,2))
         
@@ -521,7 +521,6 @@ def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=
         A2 = H.dot(H.T)
         B2 = V@H.T
         sqrtB2 = np.sqrt(B2)
-        # TODO: removed epsilon in denom OK?
         Lh = sqrtB2/sqrtB2.dot(A2)    
         if use_best:
             Lh = np.maximum(Lh,1/la.norm(A2,2))

@@ -15,7 +15,7 @@ from shootout.methods.plotters import plot_speed_comparison
 plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["Lee_Sung", "Proposed_with_max", "Proposed_no_max"]
+algs = ["Lee_Sung", "fastMU_min", "fastMU"]
 nb_seeds = 10  # Change this to >0 to run experiments
 
 name = "KL_run_06-12-2022"
@@ -48,7 +48,7 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, NbIter_inner=10, verbose
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
     error0, W0, H0, toc0, cnt0 = nmf_kl.Lee_Seung_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta)
-    error1, W1, H1, toc1, cnt1 = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=True)
+    error1, W1, H1, toc1, cnt1 = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=True, gamma=1)
     error2, W2, H2, toc2, cnt2 = nmf_kl.Proposed_KL(V, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=False)
 
     return {"errors" : [error0, error1, error2], 

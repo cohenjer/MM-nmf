@@ -13,9 +13,9 @@ from shootout.methods.runners import run_and_track
 
 plt.close('all')
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["Lee_Sung","fastMU_ex","GD", "NeNMF", "HALS", "fastMU", "fastMU_min"]
+algs = ["MU","fastMU_ex","GD", "NeNMF", "HALS", "fastMU", "fastMU_min"]
 nb_seeds = 10  # Change this to >0 to run experiments
-name = "l2_nls_run-01-05-2023"
+name = "l2_nls_run-01-06-2023"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 nb_seeds=nb_seeds, seeded_fun=True,
                 mnr = [[200,100,5], [1000,400,20]],
@@ -44,12 +44,12 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000,tol=0,NbIter_inner=10, seed=1,d
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
     error0, H0, toc0 = nls_f.NMF_Lee_Seung(V,  Worig, Hini, NbIter, legacy=False, delta=delta, verbose=verbose)
-    error1, H1, toc1  = nls_f.NeNMF_optimMajo(V, Worig, Hini, itermax=NbIter, delta=delta, verbose=verbose) #deactivate max_step
+    error1, H1, toc1  = nls_f.NeNMF_optimMajo(V, Worig, Hini, itermax=NbIter, delta=delta, verbose=verbose, gamma=1, use_best=False)
     error2, H2, toc2  = nls_f.Grad_descent(V , Worig, Hini, NbIter, delta=delta, verbose=verbose)
     error3, H3, toc3  = nls_f.NeNMF(V, Worig, Hini, itermax=NbIter, delta=delta, verbose=verbose)
     H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Worig.T@V, Worig.T@Worig, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=V)
     error5, H5, toc5 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, NbIter, use_LeeS=False, delta=delta, verbose=verbose)
-    error6, H6, toc6 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, gamma=1.2) # use gamma=1?
+    error6, H6, toc6 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, gamma=1) # use gamma=1?
 
     return {"errors" : [error0, error1, error2, error3, error4, error5, error6], 
             "timings" : [toc0, toc1, toc2, toc3, toc4, toc5, toc6],
@@ -89,7 +89,7 @@ df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_nam
 df_conv = df_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 
 # Median plot
-df_conv_median_time = pp.median_convergence_plot(df_conv, type="timings", mean=True)
+df_conv_median_time = pp.median_convergence_plot(df_conv, type="timings", mean=False)
 
 # Convergence plots with all runs
 pxfig = px.line(df_conv_median_time, 

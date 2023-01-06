@@ -68,13 +68,13 @@ m, n = Y.shape
 Nb_seeds = 1
 rank = 88
 
-name = "audio_nls_test_06-12-2022(KL only)"
+name = "audio_nls_test_01-06-2023"
 
 df = pd.DataFrame()
 
 Wgt = Wgt[:,:rank]
 
-algs = ["Proposed_l2_gamma1.9", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS", "Lee_Sung_KL", "Proposed_KL"]
+algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_l2", "NeNMF_l2", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
 
 @run_and_track(
     nb_seeds=Nb_seeds,
@@ -89,6 +89,7 @@ def one_run(rank = 88,
             delta=0, # NLS test, no early stopping
             epsilon = 1e-8,
             seed=1, # will actually be seed idx from run and track
+            nit_mu=10 # prerun MU before fastMU
             ):
     # Seeding
     rng = np.random.RandomState(seed+20)
@@ -96,22 +97,30 @@ def one_run(rank = 88,
     Hini = sigma*rng.rand(rank, n)
 
     # Frobenius algorithms
-    #error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(Y,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon, verbose=True, delta=delta)   
-    error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True)
-    error1, H1, toc1 = nls_f.NeNMF_optimMajo(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    error2, H2, toc2 = nls_f.Grad_descent(Y , Wgt, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta)
-    error3, H3, toc3 = nls_f.NeNMF(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(Wgt.T@Y, Wgt.T@Wgt, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=Y)
+    # init fastMU with few steps of MU
+    error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True, gamma=1.9)
+    error1, H1, toc1, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=True, delta=delta, verbose=True, gamma=1)
+    error2, H2, toc2 = nls_f.NeNMF_optimMajo(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
+    error3, H3, toc3 = nls_f.Grad_descent(Y , Wgt, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta, gamma=1.9)
+    error4, H4, toc4 = nls_f.NeNMF(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
+    error5, H5, toc5 = nls_f.NMF_Lee_Seung(Y,  Wgt, Hini, NbIter, legacy=False, delta=delta, verbose=True, epsilon=epsilon)
+    H6, _, _, _, error6, toc6 = nn_fac.nnls.hals_nnls_acc(Wgt.T@Y, Wgt.T@Wgt, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=Y)
 
     # KL algorithms
-    error5, H5, toc5 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta)
-    error6, H6, toc6 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta)
+#    error7, H7, toc7 = nls_kl.Lee_Seung_KL(Y,  Wgt, Hini, NbIter=nit_mu, delta=delta, verbose=True, epsilon=epsilon)
+#    error71, H71, toc71, = nls_kl.Proposed_KL(Y, Wgt, H7, NbIter=NbIter-nit_mu, use_LeeS=False, delta=delta, verbose=True, gamma=1.9)
+#    error7 = error7[:-1]+error71[(nit_mu-1):] # use error from Proposed
+#    toc7 = toc7 + [toc7[-1] +  i for i in toc71[nit_mu:]]
+    error8, H8, toc8 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta, epsilon=epsilon)
+    error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon)
+    error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=False, gamma=1.9,  epsilon=epsilon)
+#    print(len(error7),len(toc7),len(error8),len(toc8))
 
 
     return {
-        "errors": [error0, error1, error2, error3, error4, error5, error6],
-        "timings": [toc0,toc1,toc2,toc3,toc4,toc5,toc6],
-        "loss": 5*["l2"]+2*["kl"],
+        "errors": [error1, error1, error2, error3, error4, error5, error6, error8, error9, error10],
+        "timings": [toc0,toc1,toc2,toc3,toc4,toc5,toc6,toc8, toc9, toc10],
+        "loss": 7*["l2"]+3*["kl"],
             }
     
 

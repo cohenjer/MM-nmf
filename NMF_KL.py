@@ -8,6 +8,7 @@ Created on Thu Jun  9 10:42:05 2022
 import numpy as np
 from matplotlib import pyplot as plt
 from numpy import linalg as la
+from scipy.special import kl_div
 
 import time
 
@@ -35,14 +36,14 @@ def compute_error(V, WH, ind0=None, ind1=None):
         elementwise KL divergence
 
     """
-        
-    if ind0 or ind1:
-        if not ind0:
-            ind0 = np.zeros(V.shape,dtype=bool)
-        if not ind1:
-            ind1 = np.zeros(V.shape,dtype=bool)
-        return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
-    return np.sum(V* np.log(V/WH) - V + WH)
+    return np.sum(kl_div(V,WH))    
+    #if ind0 or ind1:
+        #if not ind0:
+            #ind0 = np.zeros(V.shape,dtype=bool)
+        #if not ind1:
+            #ind1 = np.zeros(V.shape,dtype=bool)
+        #return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
+    #return np.sum(V* np.log(V/WH) - V + WH)
 
 # Stoppig criteria
 
@@ -405,7 +406,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 
     
 def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
-                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, equation='Quyen'):
+                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -458,8 +459,11 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
     crit = [compute_error(V, WH, ind0, ind1)]
     cnt = []
     
+    if use_LeeS:
+        gamma = 1
+
     # for Quyen's code
-    Vinv = 1/V
+    Vinv = 1/(V+epsilon)
     
     for k in range(NbIter):
         inner_change_0 = 1
@@ -471,7 +475,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
             if use_LeeS:
                 deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
             else:
-                deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
+                deltaW = np.maximum(gamma*aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
             W = W + deltaW
             WH = W.dot(H)
             if iw==0:
@@ -494,7 +498,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
             if use_LeeS:
                 deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
             else:
-                deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+                deltaH = np.maximum(gamma*aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
             H = H + deltaH
             WH = W.dot(H)
             if ih==0:

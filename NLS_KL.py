@@ -8,6 +8,8 @@ Created on Thu Jun  9 10:42:05 2022
 import numpy as np
 from matplotlib import pyplot as plt
 from numpy import linalg as la
+from scipy.special import kl_div
+
 
 import time
 
@@ -35,14 +37,14 @@ def compute_error(V, WH, ind0=None, ind1=None):
         elementwise KL divergence
 
     """
-        
-    if ind0 or ind1:
-        if not ind0:
-            ind0 = np.zeros(V.shape,dtype=bool)
-        if not ind1:
-            ind1 = np.zeros(V.shape,dtype=bool)
-        return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
-    return np.sum(V* np.log(V/WH) - V + WH)
+    return np.sum(kl_div(V,WH))    
+    #if ind0 or ind1:
+        #if not ind0:
+            #ind0 = np.zeros(V.shape,dtype=bool)
+        #if not ind1:
+            #ind1 = np.zeros(V.shape,dtype=bool)
+        #return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
+    #return np.sum(V* np.log(V/WH) - V + WH)
 
 # Stoppig criteria
 
@@ -143,7 +145,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
 
     
 def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
-                NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf):
+                NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -190,7 +192,7 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
     H = Hini.copy()
     WH = W.dot(H)
     
-    Vinv = 1/V
+    Vinv = 1/(V+epsilon) # avoid div by zero
     crit = [compute_error(V, WH, ind0, ind1)]
     
     inner_change_0 = 1
@@ -200,12 +202,15 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None,
     sum_W2= np.sum(W, axis=1)[:,None]
     aux_H =   1/((W*sum_W2).T.dot(Vinv))
 
+    if use_LeeS:
+        gamma = 1
+
     for k in range(NbIter):
         # FIXED W ESTIMATE H        
         if use_LeeS:
             deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
         else:
-            deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+            deltaH = np.maximum(gamma*aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
         H = H + deltaH
         WH = W.dot(H)
         if k==0:
