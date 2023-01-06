@@ -52,7 +52,7 @@ Wref = np.transpose(Wref['References'])
 # Solving with nonnegative least squares
 #from tensorly.tenalg.proximal import fista
 
-algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_l2", "NeNMF_l2", "MU_Fro", "HALS", "MU_KL", "fastMU_min", "fastMU"]
+algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
 name = "hsi_nls_test_01_06_2023"
 Nb_seeds = 10
 
@@ -64,6 +64,7 @@ Nb_seeds = 10
     seeded_fun=True)
 def one_run(NbIter = 100,
             delta = 0,
+            verbose=False,
             epsilon = 1e-16,
             seed = 1,
             ):
@@ -72,12 +73,12 @@ def one_run(NbIter = 100,
     # Init
     Hini = rng.rand(Wref.shape[1], M.shape[1])
 
-    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref, np.copy(Hini), NbIter, use_LeeS=False, delta=delta, verbose=True, gamma=1.9, epsilon=epsilon)
-    error1, H1, toc1 = nls_f.NMF_proposed_Frobenius(M, Wref, Hini, NbIter, use_LeeS=True, delta=delta, verbose=True, gamma=1, epsilon=epsilon)
-    error2, H2, toc2 = nls_f.NeNMF_optimMajo(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta, gamma=1)
-    error3, H3, toc3 = nls_f.Grad_descent(M , Wref, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta, gamma=1.9)
-    error4, H4, toc4 = nls_f.NeNMF(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    error5, H5, toc5 = nls_f.NMF_Lee_Seung(M,  Wref, Hini, NbIter, legacy=False, delta=delta, verbose=True, epsilon=epsilon)
+    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref, np.copy(Hini), NbIter, use_LeeS=False, delta=delta, verbose=verbose, gamma=1.9, epsilon=epsilon)
+    error1, H1, toc1 = nls_f.NMF_proposed_Frobenius(M, Wref, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, gamma=1, epsilon=epsilon)
+    error2, H2, toc2 = nls_f.NeNMF_optimMajo(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta, gamma=1)
+    error3, H3, toc3 = nls_f.Grad_descent(M , Wref, Hini, NbIter,  epsilon=epsilon, verbose=verbose, delta=delta, gamma=1.9)
+    error4, H4, toc4 = nls_f.NeNMF(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
+    error5, H5, toc5 = nls_f.NMF_Lee_Seung(M,  Wref, Hini, NbIter, legacy=False, delta=delta, verbose=verbose, epsilon=epsilon)
     
     # HALS is unfair because we compute things before. We add the time needed for this back after the algorithm
     tic = time.perf_counter()
@@ -88,9 +89,9 @@ def one_run(NbIter = 100,
     toc6 = [toc6[i] + toc6_offset for i in range(len(toc6))] # leave the 0 in place for init
     toc6[0]=0
     
-    error7, H7, toc7 = nls_kl.Lee_Seung_KL(M, Wref, Hini, NbIter=NbIter, verbose=True, delta=delta, epsilon=epsilon)
-    error8, H8, toc8 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon)
-    error9, H9, toc9 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon)
+    error7, H7, toc7 = nls_kl.Lee_Seung_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, epsilon=epsilon)
+    error8, H8, toc8 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon)
+    error9, H9, toc9 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon)
 
 
     return {

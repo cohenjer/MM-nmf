@@ -14,7 +14,7 @@ from shootout.methods.runners import run_and_track
 
 plt.close('all')
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["MU","fastMU_ex","GD", "NeNMF", "HALS", "fastMU", "fastMU_min"]
+algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro", "fastMU_Fro_min"]
 nb_seeds = 10  # Change this to >0 to run experiments
 name = "l2_nls_run-01-06-2023"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
@@ -35,7 +35,7 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000, seed=1,delta=0.4):
     Vorig = Worig.dot(Horig)
 
     # prints
-    verbose = True
+    verbose = False
 
     # Initialization for H0 as a random matrix
     Hini = rng.rand(r, n)
@@ -48,7 +48,6 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000, seed=1,delta=0.4):
 
     # Baselines
     error0, H0, toc0 = nls_f.NMF_Lee_Seung(V,  Worig, Hini, NbIter, legacy=False, delta=delta, verbose=verbose)
-    error1, H1, toc1  = nls_f.NeNMF_optimMajo(V, Worig, Hini, itermax=NbIter, delta=delta, verbose=verbose, gamma=1, use_best=False)
     error2, H2, toc2  = nls_f.Grad_descent(V , Worig, Hini, NbIter, delta=delta, verbose=verbose)
     error3, H3, toc3  = nls_f.NeNMF(V, Worig, Hini, itermax=NbIter, delta=delta, verbose=verbose)
     
@@ -62,7 +61,7 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000, seed=1,delta=0.4):
     toc4[0]=0
 
     # Proposed methods
-    error1, H1, toc1  = nls_f.NeNMF_optimMajo(V, Worig, Hini, itermax=NbIter, delta=delta, verbose=verbose) # max on
+    error1, H1, toc1  = nls_f.NeNMF_optimMajo(V, Worig, Hini, itermax=NbIter, delta=delta, verbose=verbose, gamma=1, use_best=False)
     error5, H5, toc5 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, NbIter, use_LeeS=False, delta=delta, verbose=verbose)
     error6, H6, toc6 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, gamma=1) # use gamma=1?
 
@@ -126,29 +125,29 @@ pxfig.update_yaxes(showticklabels=True)
 pxfig.show()
 
 # Convergence plots with all runs
-pxfig2 = px.line(df_conv_it, 
-            x="it", 
-            y= "errors", 
-            color='algorithm',
-            facet_col="mnr",
-            facet_row="SNR",
-            log_y=True,
-            #log_x=True,
-            template="plotly_white",
-            height=1000)
-pxfig2.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
-# smaller linewidth
-pxfig2.update_traces(
-    selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.3,
-)
-pxfig2.update_xaxes(matches=None)
-pxfig2.update_yaxes(matches=None)
-pxfig2.update_xaxes(showticklabels=True)
-pxfig2.update_yaxes(showticklabels=True)
-pxfig2.show()
+#pxfig2 = px.line(df_conv_it, 
+            #x="it", 
+            #y= "errors", 
+            #color='algorithm',
+            #facet_col="mnr",
+            #facet_row="SNR",
+            #log_y=True,
+            ##log_x=True,
+            #template="plotly_white",
+            #height=1000)
+#pxfig2.update_layout(
+    #font_size = 20,
+    #width=1200, # in px
+    #height=900,
+    #)
+## smaller linewidth
+#pxfig2.update_traces(
+    #selector=dict(),
+    #line_width=3,
+    #error_y_thickness = 0.3,
+#)
+#pxfig2.update_xaxes(matches=None)
+#pxfig2.update_yaxes(matches=None)
+#pxfig2.update_xaxes(showticklabels=True)
+#pxfig2.update_yaxes(showticklabels=True)
+#pxfig2.show()

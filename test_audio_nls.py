@@ -68,14 +68,12 @@ m, n = Y.shape
 rank = 88*2 # one template per note only for speed
 #Wgt = Wgt[:,:rank]
 
-name = "audio_nls_test_01-06-2023"
-
 # Shootout config
-name = "audio_nls_test_08-12-2022"
+name = "audio_nls_test_01-06-2023"
 Nb_seeds = 10
 df = pd.DataFrame()
 
-algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_l2", "NeNMF_l2", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
+algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
 
 @run_and_track(
     nb_seeds=Nb_seeds,
@@ -90,6 +88,7 @@ def one_run(rank = rank,
             delta=0, # NLS test, no early stopping
             epsilon = 1e-8,
             seed=1, # will actually be seed idx from run and track
+            verbose=False,
             nit_mu=10 # prerun MU before fastMU
             ):
     # Seeding
@@ -99,12 +98,12 @@ def one_run(rank = rank,
 
     # Frobenius algorithms
     # init fastMU with few steps of MU
-    error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=False, delta=delta, verbose=True, epsilon=epsilon, gamma=1.9)
-    error1, H1, toc1, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=True, delta=delta, verbose=True, epsilon=epsilon, gamma=1)
-    error2, H2, toc2 = nls_f.NeNMF_optimMajo(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    error3, H3, toc3 = nls_f.Grad_descent(Y , Wgt, Hini, NbIter,  epsilon=epsilon, verbose=True, delta=delta, gamma=1.9)
-    error4, H4, toc4 = nls_f.NeNMF(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta)
-    error5, H5, toc5 = nls_f.NMF_Lee_Seung(Y,  Wgt, Hini, NbIter, legacy=False, delta=delta, verbose=True, epsilon=epsilon)
+    error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=False, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1.9)
+    error1, H1, toc1, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1)
+    error2, H2, toc2 = nls_f.NeNMF_optimMajo(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
+    error3, H3, toc3 = nls_f.Grad_descent(Y , Wgt, Hini, NbIter,  epsilon=epsilon, verbose=verbose, delta=delta, gamma=1.9)
+    error4, H4, toc4 = nls_f.NeNMF(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
+    error5, H5, toc5 = nls_f.NMF_Lee_Seung(Y,  Wgt, Hini, NbIter, legacy=False, delta=delta, verbose=verbose, epsilon=epsilon)
     # HALS is unfair because we compute things before. We add the time needed for this back after the algorithm
     tic = time.perf_counter()
     WtV = Wgt.T@Y
@@ -116,13 +115,13 @@ def one_run(rank = rank,
 
     # KL algorithms
     # Trying to use few iterations of MU to start fastMU
-#    error7, H7, toc7 = nls_kl.Lee_Seung_KL(Y,  Wgt, Hini, NbIter=nit_mu, delta=delta, verbose=True, epsilon=epsilon)
-#    error71, H71, toc71, = nls_kl.Proposed_KL(Y, Wgt, H7, NbIter=NbIter-nit_mu, use_LeeS=False, delta=delta, verbose=True, gamma=1.9)
+#    error7, H7, toc7 = nls_kl.Lee_Seung_KL(Y,  Wgt, Hini, NbIter=nit_mu, delta=delta, verbose=verbose, epsilon=epsilon)
+#    error71, H71, toc71, = nls_kl.Proposed_KL(Y, Wgt, H7, NbIter=NbIter-nit_mu, use_LeeS=False, delta=delta, verbose=verbose, gamma=1.9)
 #    error7 = error7[:-1]+error71[(nit_mu-1):] # use error from Proposed
 #    toc7 = toc7 + [toc7[-1] +  i for i in toc71[nit_mu:]]
-    error8, H8, toc8 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta, epsilon=epsilon)
-    error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon)
-    error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=True, delta=delta, use_LeeS=False, gamma=1.9,  epsilon=epsilon)
+    error8, H8, toc8 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, epsilon=epsilon)
+    error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon)
+    error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=False, gamma=1.9,  epsilon=epsilon)
 
 
     return {

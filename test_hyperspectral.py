@@ -53,9 +53,9 @@ Wref = np.transpose(Wref['References'])
 # Solving with nonnegative least squares
 #from tensorly.tenalg.proximal import fista
 
-algs = ["Proposed_l2_delta1.8", "Proposed_l2_extrapolated", "GD_l2", "NeNMF_l2", "HALS", "Lee_Sung_KL", "Proposed_KL"]
-name = "hsi_nls_test_08_12_2022"
-Nb_seeds = 3
+algs = ["MU_Fro", "fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_l2", "NeNMF_l2", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
+name = "hsi_nls_test_01_06_2023"
+Nb_seeds = 10
 @run_and_track(
     nb_seeds=Nb_seeds,
     algorithm_names=algs, 
@@ -68,6 +68,7 @@ def one_run(rank = 6,
             delta=0.1,
             epsilon = 1e-8,
             tol=0,
+            verbose=False,
             seed = 1,
             ):
     # Seeding
@@ -77,21 +78,23 @@ def one_run(rank = 6,
     Hini = rng.rand(rank, n)
 
     # Frobenius algorithms
-    #error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(M,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon, verbose=True, delta=delta)   
-    error0, W0, H0, toc0, cnt0 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=True, print_it=1)
-    error1, W1, H1, toc1, cnt1  = nmf_f.NeNMF_optimMajo(M, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon, verbose=True, delta=delta, print_it=1)
-    error2, W2, H2, toc2, cnt2  = nmf_f.Grad_descent(M , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon, verbose=True, delta=delta, print_it=1)
-    error3, W3, H3, toc3, cnt3  = nmf_f.NeNMF(M, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, epsilon=epsilon, verbose=True, delta=delta, print_it=1)
-    W4, H4, error4, toc4, cnt4 = nn_fac.nmf.nmf(M, rank, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner, verbose=True, delta=delta)
+    error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(M,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon, verbose=verbose, delta=delta, print_it=1)   
+    error1, W1, H1, toc1, cnt1 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose, print_it=1, gamma=1.9)
+    error2, W2, H2, toc2, cnt2 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, print_it=1, gamma=1)
+    error3, W3, H3, toc3, cnt3  = nmf_f.NeNMF_optimMajo(M, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon, verbose=verbose, delta=delta, print_it=1, gamma=1)
+    error4, W4, H4, toc4, cnt4  = nmf_f.Grad_descent(M , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon, verbose=verbose, delta=delta, print_it=1)
+    error5, W5, H5, toc5, cnt5  = nmf_f.NeNMF(M, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta, print_it=1)
+    W6, H6, error6, toc6, cnt6 = nn_fac.nmf.nmf(M, rank, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner, verbose=verbose, delta=delta)
 
     # KL algorithms
-    error5, W5, H5, toc5, cnt5 = nmf_kl.Lee_Seung_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True, print_it=1)
-    error6, W6, H6, toc6, cnt6 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=True, print_it=1)
+    error7, W7, H7, toc7, cnt7 = nmf_kl.Lee_Seung_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=1)
+    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=1, use_LeeS=True, gamma=1)
+    error9, W9, H9, toc9, cnt9 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=1, use_LeeS=False, gamma=1.9)
 
     return {
-        "errors": [error0,error1,error2,error3,error4, error5, error6],
-        "timings": [toc0,toc1,toc2,toc3,toc4,toc5,toc6],
-        "loss": 5*["l2"]+2*["kl"],
+        "errors": [error0,error1,error2,error3,error4, error5, error6, error7, error8, error9],
+        "timings": [toc0,toc1,toc2,toc3,toc4,toc5,toc6,toc7,toc8,toc9],
+        "loss": 7*["l2"]+3*["kl"],
     }
 
 df = pd.read_pickle("Results/"+name)
@@ -106,6 +109,7 @@ df_kl_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=
 # Convergence plots with all runs
 pxfig = px.line(df_l2_conv, line_group="groups", x="timings", y= "errors", color='algorithm', 
             log_y=True,
+            template="plotly_white",
             height=1000)
 pxfig.update_layout(
     font_size = 20,
@@ -114,6 +118,7 @@ pxfig.update_layout(
     )
 pxfig2 = px.line(df_kl_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
             log_y=True,
+            template="plotly_white",
             height=1000)
 pxfig2.update_layout(
     font_size = 20,

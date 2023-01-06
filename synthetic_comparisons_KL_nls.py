@@ -15,10 +15,10 @@ from shootout.methods.plotters import plot_speed_comparison
 plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["Lee_Sung", "fastMU_min", "fastMU"]
+algs = ["MU_KL", "fastMU_KL_min", "fastMU_KL"]
 nb_seeds = 10  # Change this to >0 to run experiments
 
-name = "KL_nls_run_01-05-2023"
+name = "KL_nls_run_01-06-2023" #check 05
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 add_track = {"distribution" : "uniform"},
                 nb_seeds=nb_seeds,
@@ -28,7 +28,7 @@ name = "KL_nls_run_01-05-2023"
                 delta = 0,
                 seeded_fun=True,
                 )
-def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, verbose=True, show_it=100, delta=0, seed=1):
+def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, verbose=False, show_it=100, delta=0, seed=1):
     m, n, r = mnr
     # Fixed the signal 
     rng = np.random.RandomState(seed+20)

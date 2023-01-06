@@ -19,7 +19,7 @@ plt.close('all')
 algs = ["Proposed-testing delta and inner iters"]
 nb_seeds = 10  # Change this to >0 to run experiments
 
-name = "Fro_run_delta-choice-08-12-2022"
+name = "Fro_run_delta-choice-01-06-2023"
 variables = {
     'mnr' : [[200,100,5]],
     'NbIter_inner' : [100],
@@ -34,7 +34,7 @@ variables = {
                 single_method=True,
                 **variables
                 )
-def one_run(mnr=[100,100,5],SNR=50, NbIter=20000, tol=0, NbIter_inner=10, verbose=True, show_it=1000, delta=0.4, seed=1):
+def one_run(mnr=[100,100,5],SNR=50, NbIter=20000, tol=0, NbIter_inner=10, verbose=False, show_it=1000, delta=0.4, seed=1):
     NbIter = int(NbIter*(delta+0.1)) # will be 1500 for 100 iter inner
     m, n, r = mnr
     # Fixed the signal 

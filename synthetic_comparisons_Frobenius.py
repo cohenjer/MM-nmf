@@ -14,9 +14,9 @@ from shootout.methods.plotters import plot_speed_comparison
 
 plt.close('all')
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["Lee_Sung","fastMU_ex","GD", "NeNMF", "HALS", "fastMU", "fastMU_min"]
-nb_seeds = 3  # Change this to >0 to run experiments
-name = "l2_run-01-05-2023"
+algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro", "fastMU_Fro_min"]
+nb_seeds = 10  # Change this to >0 to run experiments
+name = "l2_run-01-06-2023"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 nb_seeds=nb_seeds, seeded_fun=True,
                 mnr = [[200,100,5], [1000,400,20]],
@@ -33,7 +33,7 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000,tol=0,NbIter_inner=10, seed=1,d
     Vorig = Worig.dot(Horig)
 
     # prints
-    verbose = True
+    verbose = False
 
     # Initialization for H0 as a random matrix
     Hini = rng.rand(r, n)
@@ -46,12 +46,14 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000,tol=0,NbIter_inner=10, seed=1,d
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
     error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, delta=delta, verbose=verbose)
-    error1, W1, H1, toc1, cnt1  = nmf_f.NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, delta=delta, verbose=verbose, use_best=False, gamma=1)
     error2, W2, H2, toc2, cnt2  = nmf_f.Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol, delta=delta, verbose=verbose)
     error3, W3, H3, toc3, cnt3  = nmf_f.NeNMF(V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, delta=delta, verbose=verbose)
-    # Fewer max iter cause too slow
+    # Fewer max iter because too slow
     W4, H4, error4, toc4, cnt4 = nn_fac.nmf.nmf(V, r, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner, delta=delta, verbose=verbose)
-    error5, W5, H5, toc5, cnt5 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose)
+
+    # Proposed
+    error1, W1, H1, toc1, cnt1  = nmf_f.NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, delta=delta, verbose=verbose, use_best=False, gamma=1)
+    error5, W5, H5, toc5, cnt5 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose, gamma=1.9)
     error6, W6, H6, toc6, cnt6 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, gamma=1)
 
     return {"errors" : [error0, error1, error2, error3, error4, error5, error6], 
