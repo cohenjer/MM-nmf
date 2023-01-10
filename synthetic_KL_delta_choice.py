@@ -4,6 +4,9 @@ import NMF_KL as nmf_kl
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import sys
+import plotly.io as pio
+pio.kaleido.scope.mathjax = None
 
 # Personnal comparison toolbox
 # you can get it at 
@@ -17,13 +20,16 @@ plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
 algs = ["Proposed-testing delta and inner iters"]
-nb_seeds = 10  # Change this to >0 to run experiments
+if len(sys.argv)==1:
+    nb_seeds = 0 #no run
+else:
+    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 
 name = "KL_run_delta-choice-01-06-2023"
 variables = {
     'mnr' : [[200,100,5]],
     'NbIter_inner' : [100],
-    'delta' : [0,0.01,0.05,0.1,0.2,0.4,0.6,0.9],
+    'delta' : [0,0.001,0.01,0.05,0.1,0.3,0.6,0.9],
     'SNR' : [100],
 }
 
@@ -64,6 +70,8 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=20000, tol=0, NbIter_inner=10, verbos
 
 # -------------------- Post-Processing ------------------- #
 import pandas as pd
+import plotly.io as pio
+pio.templates.default= "plotly_white"
 
 # Load results
 df = pd.read_pickle("Results/"+name)
@@ -94,29 +102,37 @@ pxfig = px.line(df_conv_median_time,
             x="timings", 
             y= "errors", 
             color='delta',
-            facet_row="SNR",
             log_y=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
-# smaller linewidth
-pxfig.update_traces(
-    selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.3
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
 )
 
-pxfig.update_xaxes(matches=None)
-pxfig.update_yaxes(matches=None)
-pxfig.update_xaxes(showticklabels=True)
-pxfig.update_yaxes(showticklabels=True)
+# Final touch
+pxfig.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
 
+pxfig.update_layout(
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(range=[0,5], title_text="Time (s)"),
+    yaxis=dict(title_text="Fit")
+)
+
+pxfig.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig.write_image("Results/"+name+".pdf")
+pxfig.write_image("Results/"+name+".pdf")
 pxfig.show()
 
 # Figure showing cnt for each algorithm
@@ -131,25 +147,33 @@ pxfig2 = px.line(df_conv_median_cnt,
             y= "cnt", 
             color='delta',
             log_y=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig2.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
-# smaller linewidth
-pxfig2.update_traces(
-    selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.3
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
 )
 
-pxfig2.update_xaxes(matches=None)
-pxfig2.update_yaxes(matches=None)
-pxfig2.update_xaxes(showticklabels=True)
-pxfig2.update_yaxes(showticklabels=True)
+# Final touch
+pxfig2.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
 
+pxfig2.update_layout(
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(range=[0,2000], title_text="Outer iteration"),
+    yaxis=dict(title_text="Number of inner loops")
+)
+
+pxfig2.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig2.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig2.write_image("Results/"+name+"_cnt.pdf")
 pxfig2.show()

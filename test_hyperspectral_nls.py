@@ -13,9 +13,13 @@ from scipy import signal
 import scipy.io
 import plotly.express as px
 import time
-
+import sys
 from shootout.methods import runners as rn
 from shootout.methods import post_processors as pp
+import plotly.io as pio
+pio.kaleido.scope.mathjax = None # bugggggg
+pio.templates.default= "plotly_white"
+
 
 
 '''
@@ -54,10 +58,13 @@ Wref = np.transpose(Wref['References'])
 
 algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
 name = "hsi_nls_test_01_06_2023"
-Nb_seeds = 10
+if len(sys.argv)==1:
+    nb_seeds = 0 #no run
+else:
+    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 
 @rn.run_and_track(
-    nb_seeds=Nb_seeds,
+    nb_seeds=nb_seeds,
     algorithm_names=algs, 
     path_store="Results/",
     name_store=name,
@@ -133,61 +140,75 @@ pxfig = px.line(df_l2_conv_median_time,
             y= "errors", 
             color='algorithm',
             log_y=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
+# Final touch
 pxfig.update_traces(
     selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.6,)
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
 
-pxfig3 = px.line(df_l2_conv_median_it, 
-            x="it", 
-            y= "errors", 
-            color='algorithm',
-            log_y=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig3.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
-pxfig3.update_traces(
-    selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.5)
+pxfig.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(range=[0,0.5], title_text="Time (s)"),
+    yaxis=dict(title_text="Fit")
+)
+
+pxfig.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+# buuuuuugggedddd
+pxfig.write_image("Results/"+name+"_fro.pdf")
+pxfig.show()
 
 pxfig2 = px.line(df_kl_conv_median_time, 
             x="timings", 
             y= "errors", 
             color='algorithm',
             log_y=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig2.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
+# Final touch
 pxfig2.update_traces(
     selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.5,)
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
 
-pxfig3.show()
-pxfig.show()
+pxfig2.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(title_text="Time (s)"),
+    yaxis=dict(title_text="Fit")
+)
+
+pxfig2.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig2.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig2.write_image("Results/"+name+"_kl.pdf")
 pxfig2.show()
+
 
 ## Interpolating
 #df = pp.interpolate_time_and_error(df, npoints = 40, adaptive_grid=True)

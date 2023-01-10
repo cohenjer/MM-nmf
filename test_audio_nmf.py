@@ -16,6 +16,10 @@ import plotly.express as px
 from shootout.methods.runners import run_and_track
 from shootout.methods.post_processors import find_best_at_all_thresh, df_to_convergence_df, error_at_time_or_it
 from shootout.methods.plotters import plot_speed_comparison
+import sys
+import plotly.io as pio
+pio.kaleido.scope.mathjax = None
+pio.templates.default= "plotly_white"
 '''
  W is a dictionary of 88 columns and 4097 frequency bins. Each column was obtained by performing a rank-one NMF (todo correct) on the recording of a single note in the MAPS database, on a Yamaha Disklavier with close microphones, the note was played mezzo forte and the loss was beta-divergence with beta=1.
 
@@ -24,9 +28,6 @@ from shootout.methods.plotters import plot_speed_comparison
  For the purpose of this toy experiment, only one song from MAPS is selected. We then perform NMF, and look at the activations as a piano roll.
 
  For the NMF part, we simply discard the provided templates, and estimate both the templates and the activations. Again it is best to use KL divergence. We can initialize with the provided template to get a initial dictionary.
-
- Input parameters:
- rank : int (default 88) number of notes to estimate in the music excerpt.
 '''
 
 #-------------------------------------------------------------------------
@@ -44,7 +45,7 @@ freq_step = frequencies[1] #5.3 hz
 # Taking the amplitude spectrogram
 Y = np.abs(Y)**2
 # Cutting silence, end song and high frequencies (>5300 Hz)
-cutf = 500 #todo increase
+cutf = 1000 
 cutt_in = int(1/time_step) # song beginning after 1 second
 cutt_out = int(30/time_step)# 30seconds with 20ms steps #time_atoms.shape[0]
 Y = Y[:cutf, cutt_in:cutt_out]
@@ -76,12 +77,15 @@ name = "audio_test_01-06-2023"
 df = pd.DataFrame()
 
 
-Nb_seeds=10
+if len(sys.argv)==1:
+    nb_seeds = 0 #no run
+else:
+    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
 # TODO: better error message when algs dont match
 
 @run_and_track(
-    nb_seeds=Nb_seeds,
+    nb_seeds=nb_seeds,
     algorithm_names=algs, 
     path_store="Results/",
     name_store=name,
@@ -91,7 +95,7 @@ def one_run(rank = rank,
             NbIter = 100,
             NbIter_inner = 100,
             delta=0.1,
-            verbose=False,
+            verbose=True,
             epsilon = 1e-8):
     # Perturbing the initialization for randomization
     Wini = Wgt + 0.1*np.random.rand(m,rank)
@@ -129,154 +133,68 @@ df_l2_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=
 df_kl_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
                                filters={"loss":"kl"})
 # ----------------------- Plot --------------------------- #
-#fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
-#fig_winner.show()
 
 # Convergence plots with all runs
 pxfig = px.line(df_l2_conv, line_group="groups", x="timings", y= "errors", color='algorithm', 
-            log_y=True,
-            template="plotly_white",
-            height=1000)
+            log_y=True)
+
+# Final touch
+pxfig.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
 pxfig.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
-pxfig2 = px.line(df_kl_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
-            log_y=True,
-            template="plotly_white",
-            height=1000)
-pxfig2.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
+    title_text = "NMF",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(range=[0,10], title_text="Time (s)"),
+    yaxis=dict(range=np.log10([5e-11,1e-7]), title_text="Fit")
+)
+
+pxfig.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig.write_image("Results/"+name+"_fro.pdf")
+pxfig.write_image("Results/"+name+"_fro.pdf")
 pxfig.show()
+
+
+pxfig2 = px.line(df_kl_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
+            log_y=True)
+
+# Final touch
+pxfig2.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
+pxfig2.update_layout(
+    title_text = "NMF",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(title_text="Time (s)"),
+    yaxis=dict(title_text="Fit")
+)
+
+pxfig2.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig2.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig2.write_image("Results/"+name+"_kl.pdf")
 pxfig2.show()
-
-plt.show()
-# Winner at given threshold plots
-#min_thresh = np.log10(error0[0])
-#max_thresh = np.log10(error1[-1])
-#thresh = np.logspace(min_thresh,max_thresh-1,50)
-#scores_time, scores_it, timings, iterations = utils.find_best_at_all_thresh(df,thresh, 5)
-
-#fig0 = plt.figure()
-#plt.subplot(121)
-#plt.semilogx(thresh, scores_time.T)
-#plt.legend(["NMF_LeeSeung",  "NeNMF_optimMajorant", "PGD", "NeNMF", "HALS"])
-#plt.title('How many times each algorithm reached threshold the fastest (time)')
-#plt.xlabel('Rec error threshold')
-#plt.ylabel('Number of faster runs')
-#plt.subplot(122)
-#plt.semilogx(thresh, scores_it.T)
-#plt.legend(["NMF_LeeSeung",  "NeNMF_optimMajorant", "PGD", "NeNMF", "HALS"])
-#plt.title('How many times each algorithm reached threshold the fastest (iters)')
-#plt.xlabel('Rec error threshold')
-#plt.ylabel('Number of faster runs')
-
-## Error plots
-#fig_convergence_plots = plt.figure()
-#plt.semilogy(toc0,error0, label="Lee Seung NMF")
-#plt.semilogy(toc1,error1, label="Phan NeNMF")
-#plt.semilogy(toc2,error2, label="PGD")
-#plt.semilogy(toc3,error3, label="NeNMF")
-#plt.semilogy(toc4,error4, label="HALS")
-#plt.legend(fontsize = 14)
-#plt.show()
-
-
-#-----------------------------------------------------------------
-# Results post-processing
-
-# Normalize output
-#W = W0
-#H = H0
-#normsW = np.sum(W,axis=0)
-#W = W/normsW
-##H = np.diag(1/np.max(H,1))@H
-#H = np.diag(normsW)@H
-
-## Printing W and H
-#plt.figure()
-#plt.subplot(121)
-#plt.imshow(W[:200, :], aspect='auto')
-#ticks = np.trunc(frequencies[0:200:10])
-#plt.yticks(range(0,200,10), ticks.astype(int))
-#plt.ylabel('Hz')
-#plt.title('W learnt')
-#plt.subplot(122)
-#plt.imshow(Wini[:200, :], aspect='auto')
-#ticks = np.trunc(frequencies[0:200:10])
-#plt.yticks(range(0,200,10), ticks.astype(int))
-#plt.title('Provided pre-trained W')
-#plt.ylabel('Hz')
-#plt.xticks(range(8),notes)
-
-# Plotting H
-#plt.figure()
-#for i in range(rank):
-#    plt.subplot(rank,1,i+1)
-#    plt.plot(H[i,:])
-#    plt.xticks([])
-#    plt.yticks([])
-#    if i==rank-1:
-#        hop = 100
-#        ticks = np.trunc(10*time_atoms[cutt_in:cutt_out:hop])/10
-#        ticks_number = ticks.shape[0]
-#        plt.xticks(range(0,ticks_number*hop,hop), ticks)
-#    #plt.ylabel(notes[i])
-
-# Plotting H version 2
-# Thresholding the H values for activation detection, and plotting bitmap
-#thres = 1e-3 # todo handfix
-#H_plot = np.copy(H)
-#H_plot[H_plot<thres]=0
-#H_plot[H_plot>=thres]=1
-#H_nnls_plot = np.copy(H_nnls)
-#H_nnls_plot[H_nnls_plot<thres]=0
-#H_nnls_plot[H_nnls_plot>=thres]=1
-#hop = 100
-#plt.figure()
-#plt.subplot(121)
-#plt.imshow(H_plot, aspect='auto', interpolation='none')
-#plt.xticks([])
-#plt.yticks([])
-#ticks = np.trunc(10*time_atoms[cutt_in:cutt_out:hop])/10
-#ticks_number = ticks.shape[0]
-#plt.xticks(range(0,ticks_number*hop,hop), ticks)
-#plt.ylabel('notes (not labeled)')
-#plt.title('H with NMF')
-#plt.subplot(122)
-#plt.imshow(H_nnls_plot, aspect='auto', interpolation='none')
-#plt.xticks([])
-#plt.yticks([])
-#ticks = np.trunc(10*time_atoms[cutt_in:cutt_out:hop])/10
-#ticks_number = ticks.shape[0]
-#plt.xticks(range(0,ticks_number*hop,hop), ticks)
-#plt.title('H with nnls')
-#plt.ylabel('notes in order')
-
-## Printing Y
-#plt.figure()
-#plt.subplot(211)
-#plt.imshow(Y[:200,:])
-#yticks = np.trunc(frequencies[0:200:20])
-#plt.yticks(range(0,200,20), yticks.astype(int))
-#plt.ylabel('Hz')
-#hop = 100
-#xticks = np.trunc(10*time_atoms[cutt_in:cutt_out:hop])/10
-#ticks_number = xticks.shape[0]
-#plt.xticks(range(0,ticks_number*hop,hop), xticks)
-#plt.xlabel('time (s)')
-#plt.title('Y')
-#plt.subplot(212)
-#plt.imshow(np.sqrt(Y[:200,:]))
-#plt.yticks(range(0,200,20), yticks.astype(int))
-#plt.ylabel('Hz')
-#plt.xticks(range(0,ticks_number*hop,hop), xticks)
-#plt.xlabel('time (s)')
-#plt.title('sqrt(Y)')
-
-
-#plt.show()

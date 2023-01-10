@@ -16,6 +16,11 @@ import time
 from shootout.methods.runners import run_and_track
 from shootout.methods.post_processors import find_best_at_all_thresh, df_to_convergence_df, error_at_time_or_it
 from shootout.methods.plotters import plot_speed_comparison
+import sys
+import plotly.io as pio
+pio.kaleido.scope.mathjax = None
+pio.templates.default= "plotly_white"
+
 
 '''
     We load an hyperspectral image called Urban. It has 162 clean spectral bands, and 307x307 pixels. We also load a set of good endmembers considered as ``Ground Truth'' (rank=6 spectra), and we define subsets of the image that are likely to contain pure pixels.
@@ -29,10 +34,10 @@ from shootout.methods.plotters import plot_speed_comparison
 # Data import and preprocessing
 
 # Loading the data
-dict = scipy.io.loadmat('./data_and_scripts/Urban.mat')
+dico = scipy.io.loadmat('./data_and_scripts/Urban.mat')
 
 # dict is a python dictionnary. It contains the matrix we want to NMF
-M = np.transpose(dict['A']) # permutation because we like spectra in W
+M = np.transpose(dico['A']) # permutation because we like spectra in W
 m,n = M.shape
 
 # It can be nice to normalize the data, then absolute error is also relative error
@@ -54,21 +59,25 @@ Wref = np.transpose(Wref['References'])
 #from tensorly.tenalg.proximal import fista
 
 algs = ["MU_Fro", "fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_l2", "NeNMF_l2", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
-name = "hsi_nls_test_01_06_2023"
-Nb_seeds = 10
+name = "hsi_nmf_test_01_06_2023"
+if len(sys.argv)==1:
+    nb_seeds = 0 #no run
+else:
+    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 @run_and_track(
-    nb_seeds=Nb_seeds,
+    nb_seeds=nb_seeds,
     algorithm_names=algs, 
     path_store="Results/",
     name_store=name,
 )
 def one_run(rank = 6,
-            NbIter = 100,
+            NbIter = 200,
             NbIter_inner = 100,
             delta=0.1,
             epsilon = 1e-8,
             tol=0,
             verbose=False,
+            print_it=100,
             seed = 1,
             ):
     # Seeding
@@ -78,18 +87,18 @@ def one_run(rank = 6,
     Hini = rng.rand(rank, n)
 
     # Frobenius algorithms
-    error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(M,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon, verbose=verbose, delta=delta, print_it=1)   
-    error1, W1, H1, toc1, cnt1 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose, print_it=1, gamma=1.9)
-    error2, W2, H2, toc2, cnt2 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, print_it=1, gamma=1)
-    error3, W3, H3, toc3, cnt3  = nmf_f.NeNMF_optimMajo(M, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon, verbose=verbose, delta=delta, print_it=1, gamma=1)
-    error4, W4, H4, toc4, cnt4  = nmf_f.Grad_descent(M , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon, verbose=verbose, delta=delta, print_it=1)
-    error5, W5, H5, toc5, cnt5  = nmf_f.NeNMF(M, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta, print_it=1)
+    error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(M,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon, verbose=verbose, delta=delta, print_it=print_it)   
+    error1, W1, H1, toc1, cnt1 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose, print_it=print_it, gamma=1.9)
+    error2, W2, H2, toc2, cnt2 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, print_it=print_it, gamma=1)
+    error3, W3, H3, toc3, cnt3  = nmf_f.NeNMF_optimMajo(M, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon, verbose=verbose, delta=delta, print_it=print_it, gamma=1)
+    error4, W4, H4, toc4, cnt4  = nmf_f.Grad_descent(M , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon, verbose=verbose, delta=delta, print_it=print_it)
+    error5, W5, H5, toc5, cnt5  = nmf_f.NeNMF(M, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta, print_it=print_it)
     W6, H6, error6, toc6, cnt6 = nn_fac.nmf.nmf(M, rank, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner, verbose=verbose, delta=delta)
 
     # KL algorithms
-    error7, W7, H7, toc7, cnt7 = nmf_kl.Lee_Seung_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=1)
-    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=1, use_LeeS=True, gamma=1)
-    error9, W9, H9, toc9, cnt9 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=1, use_LeeS=False, gamma=1.9)
+    error7, W7, H7, toc7, cnt7 = nmf_kl.Lee_Seung_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=print_it)
+    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=print_it, use_LeeS=True, gamma=1)
+    error9, W9, H9, toc9, cnt9 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=print_it, use_LeeS=False, gamma=1.9)
 
     return {
         "errors": [error0,error1,error2,error3,error4, error5, error6, error7, error8, error9],
@@ -108,134 +117,64 @@ df_kl_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=
 # ----------------------- Plot --------------------------- #
 # Convergence plots with all runs
 pxfig = px.line(df_l2_conv, line_group="groups", x="timings", y= "errors", color='algorithm', 
-            log_y=True,
-            template="plotly_white",
-            height=1000)
+            log_y=True)
+
+# Final touch
+pxfig.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
 pxfig.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
-pxfig2 = px.line(df_kl_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
-            log_y=True,
-            template="plotly_white",
-            height=1000)
-pxfig2.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
+    title_text = "NMF",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(range=[0,30], title_text="Time (s)"),
+    yaxis=dict(range=np.log10([0.00145,0.0020]), title_text="Fit")
+)
+
+pxfig.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig.write_image("Results/"+name+"_fro.pdf")
+pxfig.write_image("Results/"+name+"_fro.pdf")
 pxfig.show()
+
+pxfig2 = px.line(df_kl_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
+            log_y=True)
+
+# Final touch
+pxfig2.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
+pxfig2.update_layout(
+    title_text = "NMF",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(title_text="Time (s)"),
+    yaxis=dict(title_text="Fit")
+)
+
+pxfig2.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig2.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig2.write_image("Results/"+name+"_kl.pdf")
 pxfig2.show()
-
-plt.show()
-
-#---------------------------------------------------
-# # Post-processing
-# print('HALS time per iteration:', tHALS/100)
-# #print('MM time per iteration:', tmm/n_iter_max)
-# # Reconstruct M to compute relative error
-# W = out[0]
-# H = out[1]
-# Mest = W@H
-# err = np.linalg.norm(M - Mest, 'fro')
-# print(err)
-# # Reconstruction with mm
-# #Wmm = out2[1]
-# #Hmm = out2[2]
-# #Mestmm = Wmm@Hmm
-# #
-# #errmm = np.linalg.norm(M - Mestmm, 2)
-# #print(errmm)
-# # Printing the convergence plot
-# plt.figure()
-# # no initial error in HALS error
-# xhals = np.linspace(0,tHALS,n_iter_max)
-# #xmm = np.linspace(0,tmm,n_iter_max)
-# plt.semilogy(xhals,out[2])
-# #plt.semilogy(xmm,out2[0][1:])
-# plt.xlabel('fake time (iter/avg iter time)')
-# plt.legend('HALS')
-# plt.show()
-# # Normalisations
-# W = W/np.sqrt(np.sum(W**2,axis=0))
-# #Wmm = Wmm/np.sqrt(np.sum(Wmm**2,axis=0))
-# # Visualization of the results
-# # TODO: PERMUTE COLUMNS SO THAT THEY MATCH
-# plt.subplot(3,6,3)
-# plt.plot(W)
-# plt.legend([1,2,3,4,5,6])
-# #plt.subplot(3,5,3)
-# #plt.plot(Wmm)
-# #plt.legend([1,2,3,4,5])
-# plt.subplot(367)
-# plt.imshow(np.transpose(np.reshape(H[0, :], [307,307])))
-# plt.title('1')
-# plt.subplot(368)
-# plt.imshow(np.transpose(np.reshape(H[1, :], [307,307])))
-# plt.title('2')
-# plt.subplot(369)
-# plt.imshow(np.transpose(np.reshape(H[2, :], [307,307])))
-# plt.title('3')
-# plt.subplot(3,6,10)
-# plt.imshow(np.transpose(np.reshape(H[3, :], [307,307])))
-# plt.title('4')
-# plt.subplot(3,6,11)
-# plt.imshow(np.transpose(np.reshape(H[4, :], [307,307])))
-# plt.title('5')
-# plt.subplot(3,6,12)
-# plt.imshow(np.transpose(np.reshape(H[5, :], [307,307])))
-# plt.title('6')
-# #plt.subplot(3,5,11)
-# #plt.imshow(np.transpose(np.reshape(Hmm[0, :], [307,307])))
-# #plt.title('1')
-# #plt.subplot(3,5,12)
-# #plt.imshow(np.transpose(np.reshape(Hmm[1, :], [307,307])))
-# #plt.title('2')
-# #plt.subplot(3,5,13)
-# #plt.imshow(np.transpose(np.reshape(Hmm[2, :], [307,307])))
-# #plt.title('3')
-# #plt.subplot(3,5,14)
-# #plt.imshow(np.transpose(np.reshape(Hmm[3, :], [307,307])))
-# #plt.title('4')
-# #plt.subplot(3,5,15)
-# #plt.imshow(np.transpose(np.reshape(Hmm[4, :], [307,307])))
-# #plt.title('5')
-# plt.show()
-
-## Visualization of the results
-#plt.subplot(3,6,3)
-#plt.plot(Wref)
-#plt.legend([1,2,3,4,5,6])
-##plt.subplot(3,5,3)
-##plt.plot(Wmm)
-##plt.legend([1,2,3,4,5])
-#plt.subplot(367)
-#plt.imshow(np.transpose(np.reshape(H[0, :], [307,307])))
-#plt.title('1')
-#plt.subplot(368)
-#plt.imshow(np.transpose(np.reshape(H[1, :], [307,307])))
-#plt.title('2')
-#plt.subplot(369)
-#plt.imshow(np.transpose(np.reshape(H[2, :], [307,307])))
-#plt.title('3')
-#plt.subplot(3,6,10)
-#plt.imshow(np.transpose(np.reshape(H[3, :], [307,307])))
-#plt.title('4')
-#plt.subplot(3,6,11)
-#plt.imshow(np.transpose(np.reshape(H[4, :], [307,307])))
-#plt.title('5')
-#plt.subplot(3,6,12)
-#plt.imshow(np.transpose(np.reshape(H[5, :], [307,307])))
-#plt.title('6')
-#plt.show()
-
-## With overcomplete W from randomly picked pixels
-#UtM = Wref2.T@M
-#UtU = Wref2.T@Wref2
-#H = nn_fac.nnls.hals_nnls_acc(UtM,UtU, in_V = np.random.rand(Wref2.shape[1],M.shape[1]),delta=1e-8, nonzero=False, maxiter=100)[0]
-##H = fista(UtM,UtU, tol=1e-8, n_iter_max=100)
-## Postprocessing
-#Mest = Wref2@H
-## Error computation
-#print('Relative Frobenius error with randomly picked pixels, FISTA alg', np.linalg.norm(M - Mest2, 'fro'))

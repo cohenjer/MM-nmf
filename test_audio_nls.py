@@ -17,6 +17,11 @@ from shootout.methods.runners import run_and_track
 import shootout.methods.post_processors as pp
 from utils import sparsify
 import time
+import sys
+import plotly.io as pio
+pio.kaleido.scope.mathjax = None
+pio.templates.default= "plotly_white"
+
 '''
  W is a dictionary of 88 columns and 4097 frequency bins. Each column was obtained by performing a rank-one NMF (todo correct) on the recording of a single note in the MAPS database, on a Yamaha Disklavier with close microphones, the note was played mezzo forte and the loss was beta-divergence with beta=1.
 
@@ -25,9 +30,6 @@ import time
  For the purpose of this toy experiment, only one song from MAPS is selected. We then perform NMF, and look at the activations as a piano roll.
 
  For the NMF part, we simply discard the provided templates, and estimate both the templates and the activations. Again it is best to use KL divergence. We can initialize with the provided template to get a initial dictionary.
-
- Input parameters:
- rank : int (default 88) number of notes to estimate in the music excerpt.
 '''
 
 #-------------------------------------------------------------------------
@@ -50,7 +52,7 @@ cutt_in = int(1/time_step) # song beginning after 1 second
 cutt_out = int(30/time_step)# 30seconds with 20ms steps #time_atoms.shape[0]
 Y = Y[:cutf, cutt_in:cutt_out]
 # normalization
-#Y = Y/np.linalg.norm(Y, 'fro')
+#Y = Y/np.linalg.norm(Y, 'fro') # TODO remove
 
 # -------------------- For NNLS -----------------------
 # Importing a good dictionnary for the NNLS part
@@ -70,20 +72,23 @@ rank = 88*2 # one template per note only for speed
 
 # Shootout config
 name = "audio_nls_test_01-06-2023"
-Nb_seeds = 10
+if len(sys.argv)==1:
+    nb_seeds = 0 #no run
+else:
+    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 df = pd.DataFrame()
 
 algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
 
 @run_and_track(
-    nb_seeds=Nb_seeds,
+    nb_seeds=nb_seeds,
     algorithm_names=algs, 
     path_store="Results/",
     name_store=name,
     seeded_fun=True,
 )
 def one_run(rank = rank,
-            NbIter = 200,
+            NbIter = 100,
             sigma = 1,
             delta=0, # NLS test, no early stopping
             epsilon = 1e-8,
@@ -162,7 +167,7 @@ df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_int
 
 # Median plots
 df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type="timings")
-df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it, type="iterations")
+#df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it, type="iterations")
 df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type="timings")
 
 # Convergence plots with all runs
@@ -171,61 +176,77 @@ pxfig = px.line(df_l2_conv_median_time,
             y= "errors", 
             color='algorithm',
             log_y=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
+# Final touch
 pxfig.update_traces(
     selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.6,)
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
 
-pxfig3 = px.line(df_l2_conv_median_it, 
-            x="it", 
-            y= "errors", 
-            color='algorithm',
-            log_y=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig3.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
-pxfig3.update_traces(
-    selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.5)
+pxfig.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(range=[0,0.5], title_text="Time (s)"),
+    yaxis=dict(range=np.log10([2e-7,7e-7]), title_text="Fit")
+)
+
+pxfig.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig.write_image("Results/"+name+"_fro.pdf")
+pxfig.write_image("Results/"+name+"_fro.pdf")
+pxfig.show()
+
 
 pxfig2 = px.line(df_kl_conv_median_time, 
             x="timings", 
             y= "errors", 
             color='algorithm',
             log_y=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig2.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
+# Final touch
 pxfig2.update_traces(
     selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.5,)
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
 
-pxfig3.show()
-pxfig.show()
+pxfig2.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    xaxis=dict(range=[0,4],title_text="Time (s)"),
+    yaxis=dict(title_text="Fit")
+)
+
+pxfig2.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig2.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig2.write_image("Results/"+name+"_kl.pdf")
 pxfig2.show()
+
 
 # Winner at given threshold plots
 #min_thresh = np.log10(error0[0])

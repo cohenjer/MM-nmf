@@ -4,6 +4,9 @@ import NLS_KL as nls_kl
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import sys
+import plotly.io as pio
+pio.kaleido.scope.mathjax = None
 
 # Personnal comparison toolbox
 # you can get it at 
@@ -16,7 +19,10 @@ plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
 algs = ["MU_KL", "fastMU_KL_min", "fastMU_KL"]
-nb_seeds = 10  # Change this to >0 to run experiments
+if len(sys.argv)==1:
+    nb_seeds = 0 #no run
+else:
+    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 
 name = "KL_nls_run_01-06-2023" #check 05
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
@@ -57,6 +63,7 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, verbose=False, show_it=1
 
 # -------------------- Post-Processing ------------------- #
 import pandas as pd
+pio.templates.default= "plotly_white"
 
 df = pd.read_pickle("Results/"+name)
 nb_seeds = df["seed"].max()+1 # get nbseed from data
@@ -83,23 +90,38 @@ pxfig = px.line(df_conv_median_time,
             facet_row="SNR",
             facet_col="mnr",
             log_y=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig.update_layout(
-    font_size = 20,
-    width=1200, # in px
-    height=900,
-    )
-# smaller linewidth
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
+# Final touch
 pxfig.update_traces(
     selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.3,
+    line_width=2.5,
+    #error_y_thickness = 0.3,
 )
-pxfig.update_xaxes(matches=None)
-pxfig.update_yaxes(matches=None)
-pxfig.update_xaxes(showticklabels=True)
-pxfig.update_yaxes(showticklabels=True)
+
+pxfig.update_layout(
+    font_size = 12,
+    width=450*1.62, # in px
+    height=450,
+    xaxis1=dict(title_text="Time (s)"),
+    xaxis3=dict(),
+    xaxis2=dict(title_text="Time (s)"),
+    xaxis4=dict(),
+    yaxis1=dict(title_text="Fit"),
+    yaxis3=dict(title_text="Fit")
+)
+
+pxfig.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig.write_image("Results/"+name+".pdf")
+pxfig.write_image("Results/"+name+".pdf")
 pxfig.show()

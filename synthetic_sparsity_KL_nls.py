@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from utils import sparsify
+import sys
 
 # Personnal comparison toolbox
 # you can get it at 
@@ -17,7 +18,10 @@ plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
 algs = ["Lee_Sung", "Proposed_with_max", "Proposed_no_max"]
-nb_seeds = 10  # Change this to >0 to run experiments
+if len(sys.argv)==1:
+    nb_seeds = 0 #no run
+else:
+    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 
 name = "KL_nls_sparsity_run_06-12-2022"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
@@ -60,6 +64,8 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, verbose=True, show_it=100, delt
 
 # -------------------- Post-Processing ------------------- #
 import pandas as pd
+import plotly.io as pio
+pio.templates.default= "plotly_white"
 
 df = pd.read_pickle("Results/"+name)
 nb_seeds = df["seed"].max()+1 # get nbseed from data

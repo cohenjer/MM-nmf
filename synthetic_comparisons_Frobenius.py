@@ -5,6 +5,9 @@ import nn_fac
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import sys
+import plotly.io as pio
+pio.kaleido.scope.mathjax = None
 
 # Personnal comparison toolbox
 # you can get it at 
@@ -15,7 +18,10 @@ from shootout.methods.plotters import plot_speed_comparison
 plt.close('all')
 # --------------------- Choose parameters for grid tests ------------ #
 algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro", "fastMU_Fro_min"]
-nb_seeds = 10  # Change this to >0 to run experiments
+if len(sys.argv)==1:
+    nb_seeds = 0 #no run
+else:
+    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 name = "l2_run-01-06-2023"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 nb_seeds=nb_seeds, seeded_fun=True,
@@ -65,6 +71,7 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000,tol=0,NbIter_inner=10, seed=1,d
 # -------------------- Post-Processing ------------------- #
 import pandas as pd
 import shootout.methods.post_processors as pp
+pio.templates.default= "plotly_white"
 
 df = pd.read_pickle("Results/"+name)
 nb_seeds = df["seed"].max()+1 # get nbseed from data
@@ -105,22 +112,35 @@ pxfig = px.line(df_conv_median_time,
             facet_row="mnr",
             log_y=True,
             #log_x=True,
-            error_y="q_errors_p", 
-            error_y_minus="q_errors_m", 
-            template="plotly_white",
-            height=1000)
-pxfig.update_layout(
-    font_size = 20,
-    width=1200,
-    height=900)
-# smaller linewidth
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+# Final touch
 pxfig.update_traces(
     selector=dict(),
-    line_width=3,
-    error_y_thickness = 0.2,
+    line_width=2.5,
+    #error_y_thickness = 0.3,
 )
-pxfig.update_xaxes(matches=None)
-pxfig.update_yaxes(matches=None)
-pxfig.update_xaxes(showticklabels=True)
-pxfig.update_yaxes(showticklabels=True)
+
+pxfig.update_layout(
+    font_size = 12,
+    width=450*1.62, # in px
+    height=450,
+    xaxis1=dict(range=[0,1],title_text="Time (s)"),
+    xaxis2=dict(range=[0,30]),
+    yaxis1=dict(title_text="Fit"),
+    yaxis2=dict(title_text="Fit")
+)
+
+pxfig.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+pxfig.write_image("Results/"+name+".pdf")
+pxfig.write_image("Results/"+name+".pdf")
 pxfig.show()
