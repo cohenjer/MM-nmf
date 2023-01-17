@@ -1,6 +1,6 @@
 import numpy as np
 
-def sparsify(M, s=0.5):
+def sparsify(M, s=0.5, epsilon=1e-8):
     """Adds zeroes in matrix M in order to have a ratio s of nnzeroes/nnentries.
 
     Parameters
@@ -14,5 +14,5 @@ def sparsify(M, s=0.5):
     # use quantiles
     val = np.quantile(vecM, 1-s)
     # put zeros in M
-    M[M<val]=0
+    M[M<val]=epsilon
     return M

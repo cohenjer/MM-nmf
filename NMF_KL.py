@@ -406,7 +406,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 
     
 def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
-                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9):
+                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9, true_hessian=True):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -468,10 +468,19 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
     for k in range(NbIter):
         inner_change_0 = 1
         inner_change_l = np.Inf
-        sum_H = np.sum(H, axis = 1)[None,:] 
-        sum_H2= np.sum(H, axis = 0)[None,:]
-        aux_W = gamma*1/(Vinv.dot((H*sum_H2).T))
+
+        if true_hessian:
+            # Uses the true Hessian but only at first iteration of inner loop (should change but too costly)
+            sum_H = np.sum(H, axis = 1)[None,:] 
+            sum_H2 = np.sum(H, axis = 0)[None,:]
+            HH2 = (H*sum_H2).T
+        else:
+            sum_H = np.sum(H, axis = 1)[None,:] 
+            sum_H2= np.sum(H, axis = 0)[None,:]
+            aux_W = gamma*1/(Vinv.dot((H*sum_H2).T))
         for iw in range(nb_inner): 
+            if true_hessian:
+                aux_W = gamma*1/((V/WH**2).dot(HH2))
             if use_LeeS:
                 deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
             else:
@@ -488,13 +497,20 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
         cnt.append(iw+1)
             
         # FIXED W ESTIMATE H  
-        sum_W = np.sum(W, axis = 0)[:, None]
-        sum_W2= np.sum(W, axis = 1)[:, None]
+        if true_hessian:
+            sum_W = np.sum(W, axis = 0)[:, None]
+            sum_W2= np.sum(W, axis = 1)[:, None]
+            WW2 = (W*sum_W2).T
+        else:
+            sum_W = np.sum(W, axis = 0)[:, None]
+            sum_W2= np.sum(W, axis = 1)[:, None]
+            aux_H =   gamma*1/((W*sum_W2).T.dot(Vinv))
+
         inner_change_0 = 1
         inner_change_l = np.Inf
-        
-        aux_H =   gamma*1/((W*sum_W2).T.dot(Vinv))
         for ih in range(nb_inner):
+            if true_hessian:
+                aux_H = gamma*1/(WW2.dot(V/WH**2))
             if use_LeeS:
                 deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
             else:

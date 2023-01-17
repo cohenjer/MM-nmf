@@ -143,7 +143,7 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
 ############################################################################
 
     
-def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9):
+def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9, true_hessian=True):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -199,11 +199,19 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, ve
     if use_LeeS:
         gamma = 1
 
-    sum_W = np.sum(W, axis=0)[:,None]
-    sum_W2= np.sum(W, axis=1)[:,None]
-    aux_H = gamma*1/((W*sum_W2).T.dot(Vinv))
+    if true_hessian:
+        sum_W = np.sum(W, axis=0)[:,None]
+        sum_W2= np.sum(W, axis=1)[:,None]
+        WH = W.dot(H)
+        WW2 = (W*sum_W2).T
+    else:
+        sum_W = np.sum(W, axis=0)[:,None]
+        sum_W2= np.sum(W, axis=1)[:,None]
+        aux_H = gamma*1/((W*sum_W2).T.dot(Vinv))
 
     for k in range(NbIter):
+        if true_hessian:
+            aux_H = gamma*1/(WW2.dot(V/WH**2))
         # FIXED W ESTIMATE H        
         if use_LeeS:
             deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)

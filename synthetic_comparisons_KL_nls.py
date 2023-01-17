@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import sys
+from utils import sparsify
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
 
@@ -24,23 +25,29 @@ if len(sys.argv)==1:
 else:
     nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 
-name = "KL_nls_run_01-06-2023" #check 05
+name = "KL_nls_run_01-06-2023_dummy" #check 05
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 add_track = {"distribution" : "uniform"},
                 nb_seeds=nb_seeds,
-                mnr = [[200,100,5],[1000,400,20]],
+                mnr = [[200,100,5],[200,100,40]],
                 NbIter = [300], # for Lee and Seung also
-                SNR = [100, 30],
+                SNR = [100],#, 30],
                 delta = 0,
                 seeded_fun=True,
                 )
-def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, verbose=False, show_it=100, delta=0, seed=1):
+def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, verbose=False, show_it=100, delta=0, seed=1, epsilon=1e-8):
     m, n, r = mnr
     # Fixed the signal 
     rng = np.random.RandomState(seed+20)
     Worig = rng.rand(m, r) 
     Horig = rng.rand(r, n)  
-    Vorig = Worig.dot(Horig)
+    # Sparsifying
+    Worig = sparsify(Worig, s=0.5, epsilon=epsilon)
+    Horig = sparsify(Horig, s=0.5, epsilon=epsilon)
+    Vorig = Worig.dot(Horig) #+ 0.1 # densified
+    # Sparsifying
+    #Vorig = sparsify(Vorig, s=0.5, epsilon=r*epsilon**2)
+    #print(f"Estce que {np.min(Vorig)} et {r*epsilon**2} sont égaux")
 
     # Initialization for H0 as a random matrix
     Hini = rng.rand(r, n)
@@ -49,12 +56,13 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=3000, tol=0, verbose=False, show_it=1
     #N = np.random.poisson(1,size=Vorig.shape) # integers
     N = rng.rand(m,n) # uniform
     sigma = 10**(-SNR/20)*np.linalg.norm(Vorig)/np.linalg.norm(N)
-    V = Vorig + sigma*N
+    V = Vorig #+ sigma*N
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
-    error0, H0, toc0 = nls_kl.Lee_Seung_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta)
-    error1, H1, toc1 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=True, gamma=1)
-    error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=False, gamma=1.9)
+    _, Hxx, _ = nls_kl.Lee_Seung_KL(V, Worig, Hini, NbIter=50, verbose=verbose, print_it=show_it, delta=delta, epsilon=epsilon)
+    error0, H0, toc0 = nls_kl.Lee_Seung_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, epsilon=epsilon)
+    error1, H1, toc1 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon)
+    error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon)
 
     return {"errors" : [error0, error1, error2], 
             "timings" : [toc0, toc1, toc2],
