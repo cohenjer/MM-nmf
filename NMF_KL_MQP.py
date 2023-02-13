@@ -11,6 +11,8 @@ from numpy import linalg as la
 from scipy.special import kl_div
 
 import time
+from utils import sparsify
+from scipy.special import kl_div
 
 
 #%% Computing error
@@ -36,139 +38,136 @@ def compute_error(V, WH, ind0=None, ind1=None):
         elementwise KL divergence
 
     """
-        
-    if ind0 or ind1:
-        if not ind0:
-            ind0 = np.zeros(V.shape,dtype=bool)
-        if not ind1:
-            ind1 = np.zeros(V.shape,dtype=bool)
-        return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
-    return np.sum(kl_div(V,WH)) #V* np.log(V/WH) - V + WH)
-
-# Stoppig criteria
-
-#def Criteria_stopping(dH, H, dW, W):
-    
-    #return la.norm(dH*(H>0) + np.minimum(dH,0)*(H==0), 2) +la.norm(dW*(W>0) + np.minimum(dW,0)*(W==0), 2) # eq. 21 p.2885 -> A RETRAVAILLER 
-
+    return np.sum(kl_div(V,WH))  
+# =============================================================================
+#     if ind0 or ind1:
+#         if not ind0:
+#             ind0 = np.zeros(V.shape,dtype=bool)
+#         if not ind1:
+#             ind1 = np.zeros(V.shape,dtype=bool)
+#         return np.sum(V[ind1]* np.log(V[ind1]/(WH[ind1]+1e-10)) - V[ind1] + WH[ind1] ) + np.sum(WH[ind0])
+#     return np.sum(kl_div(V,WH)) #V* np.log(V/WH) - V + WH)
+# 
+# =============================================================================
+ 
 
 ############################################################################
 ############################ PMF algorithm version Lee and Seung
     
 def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol=1e-7, legacy=False, verbose=False, print_it=100, delta=np.Inf):
-    
-    """
-    The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
-    V = WH + N where N represents to the noise --> It leads to find W,H in miminize [ V log (V/WH) - V + WH ] s.t. W, H >= 0
-    
-    
-    References:  
-        [1] Daniel D. Lee and H. Sebastian Seung.  Learning the parts of objects by non-negative matrix factorization.
-        Nature, 1999
-        [2]   Daniel D. Lee and H. Sebastian Seung. Algorithms for non-negative matrix factorization. In
-        Advances in Neural Information Processing Systems. MIT Press, 2001   
-    
-    Parameters
-    ----------
-    V : MxN array 
-        observation matrix that is Vorig + B where B represents to the noise.
-    W0 : MxR array
-        matrix with all entries are non-negative.
-    H0 : RxN array
-        matrix with all entries are non-negative.
-    NbIter : int
-        the maximum number of iterations.
-    NbIter_inner: int
-        number of inner loops
-    print_it: int
-        if verbose is true, sets the number of iterations between each print.
-        default: 100
-    delta: float
-        relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
-        A good value empirically: 0.4
-        default: np.Inf (no dynamic stopping)
-
-    Returns
-    -------
-    err : darray
-        vector that saves the error between Vorig with WH at each iteration.
-    H : RxN array
-        non-negative estimated matrix.
-    W : MxR array
-        non-negative estimated matrix.
-
-    """
-    toc = [0]
-    tic = time.time()
-
-    if verbose:
-        print("\n------Lee_Sung_KL running------")
-
-    W = Wini.copy()
-    H = Hini.copy()    
-    WH = W.dot(H)
-    crit = [compute_error(V, WH, ind0, ind1)]
-    cnt = []
-  
-    if legacy:
-        epsilon=0
      
+     """
+     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
+     V = WH + N where N represents to the noise --> It leads to find W,H in miminize [ V log (V/WH) - V + WH ] s.t. W, H >= 0
+     
+     
+     References:  
+         [1] Daniel D. Lee and H. Sebastian Seung.  Learning the parts of objects by non-negative matrix factorization.
+         Nature, 1999
+         [2]   Daniel D. Lee and H. Sebastian Seung. Algorithms for non-negative matrix factorization. In
+         Advances in Neural Information Processing Systems. MIT Press, 2001   
+     
+     Parameters
+     ----------
+     V : MxN array 
+         observation matrix that is Vorig + B where B represents to the noise.
+     W0 : MxR array
+         matrix with all entries are non-negative.
+     H0 : RxN array
+         matrix with all entries are non-negative.
+     NbIter : int
+         the maximum number of iterations.
+     NbIter_inner: int
+         number of inner loops
+     print_it: int
+         if verbose is true, sets the number of iterations between each print.
+         default: 100
+     delta: float
+         relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
+         A good value empirically: 0.4
+         default: np.Inf (no dynamic stopping)
 
-    for k in range(NbIter):
-        
-        
-        # FIXED H ESTIMATE W
-        
-        sumH = (np.sum(H, axis = 1)[None,:]) 
-        inner_change_0 = 1
-        inner_change_l = np.Inf
-        for l in range(nb_inner):
-            deltaW =  np.maximum(W *(((V/WH).dot(H.T))/sumH-1), epsilon-W)
-            W = W + deltaW
-            WH = W.dot(H) 
-            if l==0:
-                inner_change_0 = np.linalg.norm(deltaW)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaW)**2
-            if inner_change_l < delta*inner_change_0:
-                break
-        cnt.append(l+1)
+     Returns
+     -------
+     err : darray
+         vector that saves the error between Vorig with WH at each iteration.
+     H : RxN array
+         non-negative estimated matrix.
+     W : MxR array
+         non-negative estimated matrix.
 
-        # FIXED W ESTIMATE H
-        
-        sumW = np.sum(W, axis = 0)[:, None]
-        inner_change_0 = 1
-        inner_change_l = np.Inf
-        for l in range(nb_inner):    
-            deltaH = np.maximum(H * ((W.T.dot(V/WH))/sumW-1), epsilon-H)
-            H = H + deltaH
-            WH = W.dot(H)
-            if l==0:
-                inner_change_0 = np.linalg.norm(deltaH)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaH)**2
-            if inner_change_l < delta*inner_change_0:
-                break
-        cnt.append(l+1)   
- 
-        
-        # compute the error 
-        crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.time()-tic)
-        if verbose:
-            if k%print_it==0:
-                print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-        # Check if the error is small enough to stop the algorithm 
-        if tol:
-            if (crit[k] <= tol):
-                if verbose:
-                    print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-                return crit, W, H, tol, cnt
-        
-    if verbose:
-        print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-    return crit, W, H, toc, cnt
-    
+     """
+     toc = [0]
+     tic = time.perf_counter()
+
+     if verbose:
+         print("\n------Lee_Sung_KL running------")
+
+     W = Wini.copy()
+     H = Hini.copy()    
+     WH = W.dot(H)
+     crit = [compute_error(V, WH, ind0, ind1)]
+     cnt = []
+   
+     if legacy:
+         epsilon=0
+      
+
+     for k in range(NbIter):
+         
+         
+         # FIXED H ESTIMATE W
+         
+         sumH = (np.sum(H, axis = 1)[None,:]) 
+         inner_change_0 = 1
+         inner_change_l = np.Inf
+         for l in range(nb_inner):
+             deltaW =  np.maximum(W *(((V/WH).dot(H.T))/sumH-1), epsilon-W)
+             W = W + deltaW
+             WH = W.dot(H) 
+             if l==0:
+                 inner_change_0 = np.linalg.norm(deltaW)**2
+             else:
+                 inner_change_l = np.linalg.norm(deltaW)**2
+             if inner_change_l < delta*inner_change_0:
+                 break
+         cnt.append(l+1)
+
+         # FIXED W ESTIMATE H
+         
+         sumW = np.sum(W, axis = 0)[:, None]
+         inner_change_0 = 1
+         inner_change_l = np.Inf
+         for l in range(nb_inner):    
+             deltaH = np.maximum(H * ((W.T.dot(V/WH))/sumW-1), epsilon-H)
+             H = H + deltaH
+             WH = W.dot(H)
+             if l==0:
+                 inner_change_0 = np.linalg.norm(deltaH)**2
+             else:
+                 inner_change_l = np.linalg.norm(deltaH)**2
+             if inner_change_l < delta*inner_change_0:
+                 break
+         cnt.append(l+1)   
+  
+         
+         # compute the error 
+         crit.append(compute_error(V, WH, ind0, ind1))
+         toc.append(time.perf_counter()-tic)
+         if verbose:
+             if k%print_it==0:
+                 print("Loss at iteration {}: {}".format(k+1,crit[-1]))
+         # Check if the error is small enough to stop the algorithm 
+         if tol:
+             if (crit[k] <= tol):
+                 if verbose:
+                     print("Loss at iteration {}: {}".format(k+1,crit[-1]))
+                 return crit, W, H, tol, cnt
+         
+     if verbose:
+         print("Loss at iteration {}: {}".format(k+1,crit[-1]))
+     return crit, W, H, toc, cnt
+     
 
 
 ############################################################################ 
@@ -406,8 +405,8 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 
 
     
-def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
-                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=True, delta=np.Inf):
+def Proposed_KL(V, Wini, Hini, nb_inner=10, ind0=None, ind1=None,
+                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9, true_hessian=True):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -449,7 +448,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
 
     """
     toc = [0]
-    tic = time.time()
+    tic = time.time()#time.perf_counter()
     if verbose:
         print("\n------Proposed_MU_KL running------")
 
@@ -460,30 +459,32 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
     crit = [compute_error(V, WH, ind0, ind1)]
     cnt = []
     
-    Vinv = 1/(V+1e-16)
+    if use_LeeS:
+        gamma = 1
+
+    # for Quyen's code
+    Vinv = 1/(V+epsilon)
     
     for k in range(NbIter):
         inner_change_0 = 1
         inner_change_l = np.Inf
-        sum_H = np.sum(H, axis = 1)[None,:] 
-        sum_H2= np.sum(H, axis = 0)[None,:]
-        aux_W = 1/(Vinv.dot((H*sum_H2).T))
+
+        if true_hessian:
+            # Uses the true Hessian but only at first iteration of inner loop (should change but too costly)
+            sum_H = np.sum(H, axis = 1)[None,:] 
+            sum_H2 = np.sum(H, axis = 0)[None,:]
+            HH2 = (H*sum_H2).T
+        else:
+            sum_H = np.sum(H, axis = 1)[None,:] 
+            sum_H2= np.sum(H, axis = 0)[None,:]
+            aux_W = gamma*1/(Vinv.dot((H*sum_H2).T))
         for iw in range(nb_inner): 
+            if true_hessian:
+                aux_W = gamma*1/((V/WH**2).dot(HH2))
             if use_LeeS:
-                deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W) #
+                deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
             else:
                 deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
-                
-            # # MQP J'AI CHANGE ICI 
-            
-            
-            if np.sum(aux_W)<=np.sum(W/sum_H):
-                deltaW = np.maximum(W/sum_H*((V/WH).dot(H.T) - sum_H), epsilon-W) 
-            else:
-                deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
-            
-            
-            
             W = W + deltaW
             WH = W.dot(H)
             if iw==0:
@@ -496,28 +497,24 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
         cnt.append(iw+1)
             
         # FIXED W ESTIMATE H  
-        sum_W = np.sum(W, axis = 0)[:, None]
-        sum_W2= np.sum(W, axis = 1)[:, None]
+        if true_hessian:
+            sum_W = np.sum(W, axis = 0)[:, None]
+            sum_W2= np.sum(W, axis = 1)[:, None]
+            WW2 = (W*sum_W2).T
+        else:
+            sum_W = np.sum(W, axis = 0)[:, None]
+            sum_W2= np.sum(W, axis = 1)[:, None]
+            aux_H =   gamma*1/((W*sum_W2).T.dot(Vinv))
+
         inner_change_0 = 1
         inner_change_l = np.Inf
-        
-        aux_H =   1/((W*sum_W2).T.dot(Vinv))
         for ih in range(nb_inner):
-            
+            if true_hessian:
+                aux_H = gamma*1/(WW2.dot(V/WH**2))
             if use_LeeS:
-                deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)#
+                deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
             else:
                 deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
-                
-            
-            # # MQP J'AI CHANGE ICI 
-                
-            if np.sum(aux_H)<=np.sum(H/sum_W) : 
-                deltaH = np.maximum( H/sum_W*((W.T).dot(V/WH)- sum_W ), epsilon-H) 
-            else:
-                deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
-                
-                
             H = H + deltaH
             WH = W.dot(H)
             if ih==0:
@@ -531,6 +528,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
 
         # compute the error 
         crit.append(compute_error(V, WH, ind0, ind1))
+        #toc.append(time.perf_counter()-tic)
         toc.append(time.time()-tic)
         if verbose:
             if k%print_it==0:
@@ -547,6 +545,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
 
 
 
+
 ######################################################################
 ########### TEST
 
@@ -554,16 +553,35 @@ if __name__ == '__main__':
     
     plt.close('all')
     m = 200
-    n = 101
-    p = 5
-     
-    Worig = np.random.rand(m, p) 
-    Horig = np.random.rand(p, n) 
-    Vorig =  Worig.dot(Horig) 
+    n = 100
+    r = 5
+    #setup =  "dense"
+    #setup = "fac sparse" 
+    #setup =  "fac data sparse"
+    setup =  "data sparse"
+    epsilon=1e-8
+    Worig = np.random.rand(m, r) 
+    Horig = np.random.rand(r, n) 
+    
+    if setup == "dense":       
+        Vorig =  Worig.dot(Horig) 
+    elif setup== "fac sparse":# sparse factors, dense data
+         Worig = sparsify(Worig, s=0.5, epsilon=epsilon)
+         Horig = sparsify(Horig, s=0.5, epsilon=epsilon)
+         Vorig = Worig.dot(Horig) + 0.01 # densified
+    elif setup==  "fac data sparse":# sparse factors and data
+         Worig = sparsify(Worig, s=0.5, epsilon=epsilon)
+         Horig = sparsify(Horig, s=0.5, epsilon=epsilon)
+         Vorig = Worig.dot(Horig) #+ 0.1 # densified
+         Vorig = sparsify(Vorig, s=0.5, epsilon=r*epsilon**2)
+    elif setup == "data sparse":# dense factors, sparse data
+         Vorig = Worig.dot(Horig) #+ 0.1 # densified
+         Vorig = sparsify(Vorig, s=0.5, epsilon=r*epsilon**2)
+    
     
     # Init
-    Wini = np.random.rand(m,p) + 1
-    Hini = np.random.rand(p,n) + 1
+    Wini = np.random.rand(m,r)  
+    Hini = np.random.rand(r,n)  
     WH = Worig.dot(Horig)
    
     # Parameters
@@ -571,104 +589,50 @@ if __name__ == '__main__':
     NbIter = 3000
     
     # adding noise to the observed data
-    sigma =  1e-6
+ 
     delta = 0.0
 
     # Printing
     verbose=True
      
-    if sigma == 0:
-        NbSeed = 1 # if without noise nb of noise = 0
-    else:
-        NbSeed = 1
-    
-    Error0 = np.zeros(NbSeed)
-    Error1 = np.zeros(NbSeed)
-    Error2 = np.zeros(NbSeed)     
-    Error3 = np.zeros(NbSeed)
-    
-    NbIterStop0 = np.zeros(NbSeed)
-    NbIterStop1 = np.zeros(NbSeed)
-    NbIterStop2 = np.zeros(NbSeed)
-    NbIterStop3 = np.zeros(NbSeed)
-
-    for  s in range(NbSeed): #[NbSeed-1]:#
-        print('-------Noise with random seed =  ' +str(s)+'---------') 
-        np.random.seed(s)
-
-        N = sigma*np.random.rand(m,n)
-        V = Vorig + N
-        
-        #eps = 2.2204e-16
-        #ind0 = np.where(V <= eps)
-        #ind1 = np.where(V > eps)
-
-        epsilon = 1e-8
  
-        # Beta divergence 
-        crit0, W0, H0, toc0, cnt0 = Lee_Seung_KL(V, Wini, Hini, nb_inner=nb_inner,             
-            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=delta)
-          
-         
-        #crit1, W1, H1, toc1  = Fevotte_KL(V, Wini, Hini, nb_inner=nb_inner, 
-            #epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=0.4)
-        #time1 = toc1[-1]  
-        #crit1 = np.array(crit1)
-        #Error1[s] = crit1[-1] 
-        #NbIterStop1[s] = len(crit1)
+  
+    # Beta divergence 
+    crit0, W0, H0, toc0, cnt0 = Lee_Seung_KL(Vorig,  Wini, Hini, ind0=None, ind1=None, nb_inner=nb_inner, 
+                                             NbIter=NbIter, epsilon=1e-8, tol=1e-7, legacy=False, verbose=True, print_it=100, delta=np.Inf) 
+  
+     
+    crit1, W1, H1, toc1, cnt1  =  Proposed_KL(Vorig, Wini, Hini, nb_inner=nb_inner,
+                    NbIter=NbIter, epsilon=1e-8, tol=1e-7, verbose=True, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9, true_hessian=True) 
         
-        
-        #stepsize=[1e-5,1e-5]
-        ##stepsize=None
-        ## TODO: remove from test
-        #crit2, W2, H2, toc2  =NeNMF_KL(V, Wini, Hini, nb_inner=nb_inner, 
-            #epsilon=epsilon, verbose=verbose, NbIter=NbIter, stepsize=stepsize, delta=0.01)   
-        #time2 = toc2[-1]     
-        #crit2 = np.array(crit2)
-        #Error2[s] = crit2[-1] 
-        #NbIterStop2[s] = len(crit2)
-        
-         
-        crit3, W3, H3, toc3, cnt3  = Proposed_KL(V, Wini, Hini, nb_inner=nb_inner, 
-            epsilon=epsilon, verbose=verbose, NbIter=NbIter, delta=delta, alpha_strategy="data_sum", print_it=100)
-        
-        
-    
      ## ------------------Display objective functions
-    fig = plt.figure(figsize=(6,3),tight_layout = {'pad': 0})    
-    plt.semilogy(crit0, label = 'Lee and Seung', linewidth = 3)
-    plt.semilogy(crit3, label = 'Pham et al', linewidth = 3)
-
-    plt.title('Objective function values versus iterations', fontsize=14)# for different majorizing functions')
-    plt.xlabel('Iteration', fontsize=14)
-    plt.ylabel(r'$\log\left( || V - WH || \right)$', fontsize=14)
-    plt.legend(fontsize = 14)
-    plt.grid(True)
-    results_path = 'Results/beta_divergence' 
-    plt.savefig(results_path+'.eps', format='eps')       
-    plt.legend(fontsize = 14)  
+# =============================================================================
+#     fig = plt.figure(figsize=(6,3),tight_layout = {'pad': 0})    
+#     plt.semilogy(crit0, label = 'Lee and Seung', linewidth = 3)
+#     plt.semilogy(crit1, label = 'Pham et al', linewidth = 3)
+#     plt.title('Objective function values versus iterations', fontsize=14)# for different majorizing functions')
+#     plt.xlabel('Iteration', fontsize=14)
+#     plt.ylabel(r'$\log\left( || V - WH || \right)$', fontsize=14)
+#     plt.legend(fontsize = 14)
+#     plt.grid(True)
+#     results_path = 'Results/beta_divergence' 
+#     #plt.savefig(results_path+'.eps', format='eps')       
+#     plt.legend(fontsize = 14)  
+# =============================================================================
     
     plt.figure(figsize=(6,3),tight_layout = {'pad': 0})    
     plt.semilogy(toc0, crit0, label = 'Lee and Seung', linewidth = 3)
-    plt.semilogy(toc3, crit3, label = 'Pham et al', linewidth = 3)
+    plt.semilogy(toc1, crit1, label = 'Pham et al', linewidth = 3)
     plt.title('Objective function values versus time', fontsize=14)# for different majorizing functions')
     plt.xlabel('Iteration', fontsize=14)
     plt.ylabel(r'$\log\left( || V - WH || \right)$', fontsize=14)
     plt.legend(fontsize = 14)
     plt.grid(True)
     results_path = 'Results/beta_divergence' 
-    plt.savefig(results_path+'.eps', format='eps')       
+    #plt.savefig(results_path+'.eps', format='eps')       
     plt.legend(fontsize = 14)  
       
-# =============================================================================
-#     plt.figure(figsize=(6,3),tight_layout = {'pad': 0})
-#     k=10
-#     plt.plot(np.convolve(cnt0, np.ones(k)/k, mode='valid')[::3])
-#     plt.plot(np.convolve(cnt3, np.ones(k)/k, mode='valid')[::3])
-#     plt.legend(["LeeSeung", "Proposed"])
-# =============================================================================
-
-    plt.show()
-
+ 
+ 
     
         
