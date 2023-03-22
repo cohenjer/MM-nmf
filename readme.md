@@ -28,10 +28,12 @@ The following libraries are required to run the algorithms:
 - numpy
 - scipy
 - matplotlib
+
 Additionally, to run the experiments, install the following packages:
 - plotly
 - pandas
 - soundfile (audio experiment only)
+ 
 Two custom packages are also required:
 - nnfac (local version): install by 
   ```
