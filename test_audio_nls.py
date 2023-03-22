@@ -1,21 +1,14 @@
-from importlib.resources import path
 import numpy as np
-from scipy.linalg import hadamard
 import NLS_Frobenius as nls_f 
 import NLS_KL as nls_kl
-import matplotlib.pyplot as plt
 import nn_fac
 import pandas as pd
-import utils
-#from nn_fac.nmf import nmf as nmf_hals
-from tensorly.tenalg.proximal import fista
 import soundfile as sf
 from scipy import signal
 import plotly.express as px
 # personal toolbox
 from shootout.methods.runners import run_and_track
 import shootout.methods.post_processors as pp
-from utils import sparsify
 import time
 import sys
 import plotly.io as pio

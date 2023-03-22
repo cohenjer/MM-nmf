@@ -1,15 +1,8 @@
 import numpy as np
-from scipy.linalg import hadamard
 import NLS_Frobenius as nls_f 
 import NLS_KL as nls_kl
-import matplotlib.pyplot as plt
 import nn_fac
 import pandas as pd
-import utils
-#from nn_fac.nmf import nmf as nmf_hals
-from tensorly.tenalg.proximal import fista
-import soundfile as sf
-from scipy import signal
 import scipy.io
 import plotly.express as px
 import time
@@ -17,7 +10,7 @@ import sys
 from shootout.methods import runners as rn
 from shootout.methods import post_processors as pp
 import plotly.io as pio
-pio.kaleido.scope.mathjax = None # bugggggg
+pio.kaleido.scope.mathjax = None # bug
 pio.templates.default= "plotly_white"
 
 

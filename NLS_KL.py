@@ -17,7 +17,6 @@ import time
 def compute_error(V, WH, ind0=None, ind1=None):
     """
     Elementwise Kullback Leibler divergence
-    TODO: replace with better one to avoid problems with log0
 
     Parameters
     ----------
@@ -216,7 +215,7 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, ve
 
         # FIXED W ESTIMATE H        
         if k==0:
-            # first iteration: LS TODO mention in paper
+            # first iteration: LS
             deltaH = np.maximum(H/sum_W*((W.T).dot(V/WH)- sum_W ), epsilon-H)
         else:
             if use_LeeS:

@@ -6,16 +6,12 @@ import NMF_KL as nmf_kl
 import matplotlib.pyplot as plt
 import nn_fac
 import pandas as pd
-import utils
-#from nn_fac.nmf import nmf as nmf_hals
-from tensorly.tenalg.proximal import fista
 import soundfile as sf
 from scipy import signal
 import plotly.express as px
 # personal toolbox
 from shootout.methods.runners import run_and_track
-from shootout.methods.post_processors import find_best_at_all_thresh, df_to_convergence_df, error_at_time_or_it
-from shootout.methods.plotters import plot_speed_comparison
+from shootout.methods.post_processors import df_to_convergence_df
 import sys
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None

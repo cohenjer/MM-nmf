@@ -529,7 +529,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
                     deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
             H = H + deltaH
             WH = W.dot(H)
-            if k>0: # no early stopping the first iteration TODO mention in paper
+            if k>0: # no early stopping the first iteration
                 if ih==0:
                     inner_change_0 = np.linalg.norm(deltaH)**2
                 else:
