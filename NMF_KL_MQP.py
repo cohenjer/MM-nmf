@@ -552,8 +552,8 @@ def Proposed_KL(V, Wini, Hini, nb_inner=10, ind0=None, ind1=None,
 if __name__ == '__main__':
     
     plt.close('all')
-    m = 200
-    n = 100
+    m = 100
+    n = 50
     r = 5
     #setup =  "dense"
     #setup = "fac sparse" 

@@ -6,7 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import sys
 import plotly.io as pio
-pio.kaleido.scope.mathjax = None
+#pio.kaleido.scope.mathjax = None
 
 # Personnal comparison toolbox
 # you can get it at 
@@ -25,7 +25,7 @@ if len(sys.argv)==1:
 else:
     nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 
-name = "Fro_run_delta-choice-01-06-2023"
+name = "Fro_run_delta-choice-02-14-2023"
 variables = {
     'mnr' : [[200,100,5]],
     'NbIter_inner' : [100],
@@ -102,7 +102,9 @@ pxfig = px.line(df_conv_median_time,
             x="timings", 
             y= "errors", 
             color='delta',
+            line_dash='delta',
             log_y=True,
+            labels={"delta": "$\delta$"}
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
 )
@@ -118,7 +120,7 @@ pxfig.update_layout(
     font_size = 12,
     width=450*1.62/2, # in px
     height=450,
-    xaxis=dict(range=[0,1], title_text="Time (s)"),
+    xaxis=dict(range=[0,1.5], title_text="Time (s)"),
     yaxis=dict(title_text="Fit")
 )
 
@@ -131,7 +133,6 @@ pxfig.update_yaxes(
     showticklabels=True
 )
 
-pxfig.write_image("Results/"+name+".pdf")
 pxfig.write_image("Results/"+name+".pdf")
 pxfig.show()
 
@@ -147,9 +148,11 @@ pxfig2 = px.line(df_conv_median_cnt,
             x="it", 
             y= "cnt", 
             color='delta',
+            line_dash='delta',
             log_y=True,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
+            labels={"delta": "$\delta$"}
 )
 
 # Final touch
@@ -177,4 +180,5 @@ pxfig2.update_yaxes(
 )
 
 pxfig2.write_image("Results/"+name+"_cnt.pdf")
+pxfig.write_image("Results/"+name+".pdf")
 pxfig2.show()

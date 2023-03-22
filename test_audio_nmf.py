@@ -72,7 +72,7 @@ rank = 88*2 # one template per note only for speed
 #Htrue = sparsify(np.random.rand(rank,n),0.5)
 #Y = Wgt@Htrue + 1e-3*np.random.rand(*Y.shape)
 
-name = "audio_test_01-06-2023"
+name = "audio_test_02-14-2023"
 
 df = pd.DataFrame()
 
@@ -81,7 +81,7 @@ if len(sys.argv)==1:
     nb_seeds = 0 #no run
 else:
     nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
-algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
+algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "fastMU_KL_approx"]
 # TODO: better error message when algs dont match
 
 @run_and_track(
@@ -103,7 +103,7 @@ def one_run(rank = rank,
 
     # Frobenius algorithms
     error0, W0, H0, toc0, cnt0 = nmf_f.NMF_proposed_Frobenius(Y, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose, gamma=1.9)
-    error1, W1, H1, toc1, cnt1 = nmf_f.NMF_proposed_Frobenius(Y, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, gamma=1)
+    #error1, W1, H1, toc1, cnt1 = nmf_f.NMF_proposed_Frobenius(Y, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, gamma=1)
     error2, W2, H2, toc2, cnt2  = nmf_f.NeNMF_optimMajo(Y, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon, verbose=verbose, delta=delta, gamma=1)
     error3, W3, H3, toc3, cnt3  = nmf_f.Grad_descent(Y , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon, verbose=verbose, delta=delta)
     error4, W4, H4, toc4, cnt4  = nmf_f.NeNMF(Y, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
@@ -112,14 +112,14 @@ def one_run(rank = rank,
 
     # KL algorithms
     error7, W7, H7, toc7, cnt7 = nmf_kl.Lee_Seung_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, epsilon=epsilon)
-    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, use_LeeS=True, gamma=1, epsilon=epsilon)
-    error9, W9, H9, toc9, cnt9 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, use_LeeS=False, gamma=1.9, epsilon=epsilon)
+    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=True)
+    error9, W9, H9, toc9, cnt9 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=False)
 
 
     return {
-        "errors": [error0, error1, error2, error3, error4, error5, error6, error7, error8, error9],
-        "timings": [toc0,toc1,toc2,toc3,toc4,toc5,toc6, toc7, toc8, toc9],
-        "loss": 7*["l2"]+3*["kl"],
+        "errors": [error0, error2, error3, error4, error5, error6, error7, error8, error9],
+        "timings": [toc0,toc2,toc3,toc4,toc5,toc6, toc7, toc8, toc9],
+        "loss": 6*["l2"]+3*["kl"],
             }
     
 
@@ -136,6 +136,7 @@ df_kl_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=
 
 # Convergence plots with all runs
 pxfig = px.line(df_l2_conv, line_group="groups", x="timings", y= "errors", color='algorithm', 
+            line_dash='algorithm',
             log_y=True)
 
 # Final touch
@@ -169,6 +170,7 @@ pxfig.show()
 
 
 pxfig2 = px.line(df_kl_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
+            line_dash='algorithm',
             log_y=True)
 
 # Final touch

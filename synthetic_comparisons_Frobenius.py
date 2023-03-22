@@ -17,12 +17,12 @@ from shootout.methods.plotters import plot_speed_comparison
 
 plt.close('all')
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro", "fastMU_Fro_min"]
+algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro"]
 if len(sys.argv)==1:
     nb_seeds = 0 #no run
 else:
     nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
-name = "l2_run-01-06-2023"
+name = "l2_run-02-14-2023"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 nb_seeds=nb_seeds, seeded_fun=True,
                 mnr = [[200,100,5], [1000,400,20]],
@@ -60,11 +60,12 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000,tol=0,NbIter_inner=10, seed=1,d
     # Proposed
     error1, W1, H1, toc1, cnt1  = nmf_f.NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, delta=delta, verbose=verbose, use_best=False, gamma=1)
     error5, W5, H5, toc5, cnt5 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose, gamma=1.9)
-    error6, W6, H6, toc6, cnt6 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, gamma=1)
+    #error6, W6, H6, toc6, cnt6 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, gamma=1)
 
-    return {"errors" : [error0, error1, error2, error3, error4, error5, error6], 
-            "timings" : [toc0, toc1, toc2, toc3, toc4, toc5, toc6],
-            "cnt" : [cnt0[::10], cnt1[::10], cnt2[::10], cnt3[::10], cnt4[::10], cnt5[::10], cnt6[::10]]
+    #   algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro"]
+    return {"errors" : [error0, error1, error2, error3, error4, error5],#, error6], 
+            "timings" : [toc0, toc1, toc2, toc3, toc4, toc5],#, toc6],
+            "cnt" : [cnt0[::10], cnt1[::10], cnt2[::10], cnt3[::10], cnt4[::10], cnt5[::10]]#, cnt6[::10]]
             }
 
 
@@ -109,8 +110,10 @@ pxfig = px.line(df_conv_median_time,
             x="timings", 
             y= "errors", 
             color='algorithm',
-            facet_row="mnr",
+            line_dash='algorithm',
+            facet_col="mnr",
             log_y=True,
+            facet_col_spacing=0.1,
             #log_x=True,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
@@ -126,10 +129,10 @@ pxfig.update_layout(
     font_size = 12,
     width=450*1.62, # in px
     height=450,
-    xaxis1=dict(range=[0,1],title_text="Time (s)"),
-    xaxis2=dict(range=[0,30]),
+    xaxis1=dict(range=[0,30],title_text="Time (s)"),
+    xaxis2=dict(range=[0,3],title_text="Time (s)"),
     yaxis1=dict(title_text="Fit"),
-    yaxis2=dict(title_text="Fit")
+    yaxis2=dict(title_text="")
 )
 
 pxfig.update_xaxes(
@@ -140,6 +143,10 @@ pxfig.update_yaxes(
     matches=None,
     showticklabels=True
 )
+# updating titles
+for i,ann in enumerate(pxfig.layout.annotations):
+    if ann.text[:3]=="mnr":
+        ann.text="[m,n,r]"+ann.text[3:] 
 
 pxfig.write_image("Results/"+name+".pdf")
 pxfig.write_image("Results/"+name+".pdf")

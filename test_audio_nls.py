@@ -71,14 +71,14 @@ rank = 88*2 # one template per note only for speed
 #Wgt = Wgt[:,:rank]
 
 # Shootout config
-name = "audio_nls_test_01-06-2023"
+name = "audio_nls_test_02-14-2023"
 if len(sys.argv)==1:
     nb_seeds = 0 #no run
 else:
     nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
 df = pd.DataFrame()
 
-algs = ["fastMU_Fro", "fastMU_Fro_min", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL_min", "fastMU_KL"]
+algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "fastMU_KL_approx"]
 
 @run_and_track(
     nb_seeds=nb_seeds,
@@ -104,7 +104,7 @@ def one_run(rank = rank,
     # Frobenius algorithms
     # init fastMU with few steps of MU
     error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=False, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1.9)
-    error1, H1, toc1, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1)
+    #error1, H1, toc1, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1)
     error2, H2, toc2 = nls_f.NeNMF_optimMajo(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
     error3, H3, toc3 = nls_f.Grad_descent(Y , Wgt, Hini, NbIter,  epsilon=epsilon, verbose=verbose, delta=delta, gamma=1.9)
     error4, H4, toc4 = nls_f.NeNMF(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
@@ -125,14 +125,14 @@ def one_run(rank = rank,
 #    error7 = error7[:-1]+error71[(nit_mu-1):] # use error from Proposed
 #    toc7 = toc7 + [toc7[-1] +  i for i in toc71[nit_mu:]]
     error8, H8, toc8 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, epsilon=epsilon)
-    error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon)
-    error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=False, gamma=1.9,  epsilon=epsilon)
+    error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=True)
+    error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=False, gamma=1.9,  epsilon=epsilon, true_hessian=False)
 
 
     return {
-        "errors": [error1, error1, error2, error3, error4, error5, error6, error8, error9, error10],
-        "timings": [toc0,toc1,toc2,toc3,toc4,toc5,toc6,toc8, toc9, toc10],
-        "loss": 7*["l2"]+3*["kl"],
+        "errors": [error0, error2, error3, error4, error5, error6, error8, error9, error10],
+        "timings": [toc0,toc2,toc3,toc4,toc5,toc6,toc8, toc9, toc10],
+        "loss": 6*["l2"]+3*["kl"],
             }
     
 
@@ -175,6 +175,7 @@ pxfig = px.line(df_l2_conv_median_time,
             x="timings", 
             y= "errors", 
             color='algorithm',
+            line_dash='algorithm',
             log_y=True,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
@@ -214,6 +215,7 @@ pxfig2 = px.line(df_kl_conv_median_time,
             x="timings", 
             y= "errors", 
             color='algorithm',
+            line_dash='algorithm',
             log_y=True,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 

@@ -17,12 +17,12 @@ from shootout.methods.runners import run_and_track
 
 plt.close('all')
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro", "fastMU_Fro_min"]
+algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro"]
 if len(sys.argv)==1:
     nb_seeds = 0 #no run
 else:
     nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
-name = "l2_nls_run-01-06-2023"
+name = "l2_nls_run-02-14-2023"
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
                 add_track = {"distribution" : "uniform"},
                 nb_seeds=nb_seeds,
@@ -69,10 +69,10 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000, seed=1,delta=0.4):
     # Proposed methods
     error1, H1, toc1  = nls_f.NeNMF_optimMajo(V, Worig, Hini, itermax=NbIter, delta=delta, verbose=verbose, gamma=1, use_best=False)
     error5, H5, toc5 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, NbIter, use_LeeS=False, delta=delta, verbose=verbose)
-    error6, H6, toc6 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, gamma=1) # use gamma=1?
+    #error6, H6, toc6 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, gamma=1) # use gamma=1?
 
-    return {"errors" : [error0, error1, error2, error3, error4, error5, error6], 
-            "timings" : [toc0, toc1, toc2, toc3, toc4, toc5, toc6],
+    return {"errors" : [error0, error1, error2, error3, error4, error5], 
+            "timings" : [toc0, toc1, toc2, toc3, toc4, toc5],
             }
 
 
@@ -106,9 +106,12 @@ pxfig = px.line(df_conv_median_time,
             x="timings", 
             y= "errors", 
             color='algorithm',
+            line_dash='algorithm',
             facet_col="mnr",
             facet_row="SNR",
             log_y=True,
+            facet_col_spacing=0.1,
+            facet_row_spacing=0.1,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
 )
@@ -140,6 +143,10 @@ pxfig.update_yaxes(
     matches=None,
     showticklabels=True
 )
+# updating titles
+for i,ann in enumerate(pxfig.layout.annotations):
+    if ann.text[:3]=="mnr":
+        ann.text="[m,n,r]"+ann.text[3:] 
 
 # we save twice because of kaleido+browser bug...
 pxfig.write_image("Results/"+name+".pdf")

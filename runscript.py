@@ -1,13 +1,17 @@
 import os
 from os import system
+import sys
 
-nbseeds=0
+if len(sys.argv)<2:
+    nbseeds = 0
+else:
+    nbseeds=sys.argv[1]
 
 names = [
     "synthetic_comparisons_Frobenius_nls.py",
     "synthetic_comparisons_Frobenius.py",
-    "synthetic_comparisons_KL_nls.py",
-    "synthetic_comparisons_KL.py",
+    "synthetic_comparisons_KL_nls_sparse.py",
+    "synthetic_comparisons_KL_sparse.py",
     "synthetic_Frobenius_delta_choice.py",
     "synthetic_KL_delta_choice.py",
     "test_audio_nls.py",

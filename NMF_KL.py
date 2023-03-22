@@ -126,12 +126,13 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
             deltaW =  np.maximum(W *(((V/WH).dot(H.T))/sumH-1), epsilon-W)
             W = W + deltaW
             WH = W.dot(H) 
-            if l==0:
-                inner_change_0 = np.linalg.norm(deltaW)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaW)**2
-            if inner_change_l < delta*inner_change_0:
-                break
+            if k>0:
+                if l==0:
+                    inner_change_0 = np.linalg.norm(deltaW)**2
+                else:
+                    inner_change_l = np.linalg.norm(deltaW)**2
+                if inner_change_l < delta*inner_change_0:
+                    break
         cnt.append(l+1)
 
         # FIXED W ESTIMATE H
@@ -143,12 +144,13 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
             deltaH = np.maximum(H * ((W.T.dot(V/WH))/sumW-1), epsilon-H)
             H = H + deltaH
             WH = W.dot(H)
-            if l==0:
-                inner_change_0 = np.linalg.norm(deltaH)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaH)**2
-            if inner_change_l < delta*inner_change_0:
-                break
+            if k>0:
+                if l==0:
+                    inner_change_0 = np.linalg.norm(deltaH)**2
+                else:
+                    inner_change_l = np.linalg.norm(deltaH)**2
+                if inner_change_l < delta*inner_change_0:
+                    break
         cnt.append(l+1)   
  
         
@@ -466,8 +468,6 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
     Vinv = 1/(V+epsilon)
     
     for k in range(NbIter):
-        inner_change_0 = 1
-        inner_change_l = np.Inf
 
         if true_hessian:
             # Uses the true Hessian but only at first iteration of inner loop (should change but too costly)
@@ -478,21 +478,28 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
             sum_H = np.sum(H, axis = 1)[None,:] 
             sum_H2= np.sum(H, axis = 0)[None,:]
             aux_W = gamma*1/(Vinv.dot((H*sum_H2).T))
+        inner_change_0 = 1
+        inner_change_l = np.Inf
         for iw in range(nb_inner): 
-            if true_hessian:
+            if true_hessian and k>0:
                 aux_W = gamma*1/((V/WH**2).dot(HH2))
-            if use_LeeS:
-                deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
+            if k==0:
+                # Lee Seung first iter
+                deltaW =  np.maximum(W *(((V/WH).dot(H.T))/sum_H-1), epsilon-W)
             else:
-                deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
+                if use_LeeS:
+                    deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
+                else:
+                    deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
             W = W + deltaW
             WH = W.dot(H)
-            if iw==0:
-                inner_change_0 = np.linalg.norm(deltaW)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaW)**2
-            if inner_change_l < delta*inner_change_0:
-                break
+            if k>0: # no early stopping the first iteration
+                if iw==0:
+                    inner_change_0 = np.linalg.norm(deltaW)**2
+                else:
+                    inner_change_l = np.linalg.norm(deltaW)**2
+                if inner_change_l < delta*inner_change_0:
+                    break
            
         cnt.append(iw+1)
             
@@ -509,20 +516,26 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
         inner_change_0 = 1
         inner_change_l = np.Inf
         for ih in range(nb_inner):
-            if true_hessian:
+            if true_hessian and k>0:
                 aux_H = gamma*1/(WW2.dot(V/WH**2))
-            if use_LeeS:
-                deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+            
+            if k==0:
+                # LS first iter
+                deltaH = np.maximum(H * ((W.T.dot(V/WH))/sum_W-1), epsilon-H)
             else:
-                deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+                if use_LeeS:
+                    deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+                else:
+                    deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
             H = H + deltaH
             WH = W.dot(H)
-            if ih==0:
-                inner_change_0 = np.linalg.norm(deltaH)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaH)**2
-            if inner_change_l < delta*inner_change_0:
-                break
+            if k>0: # no early stopping the first iteration TODO mention in paper
+                if ih==0:
+                    inner_change_0 = np.linalg.norm(deltaH)**2
+                else:
+                    inner_change_l = np.linalg.norm(deltaH)**2
+                if inner_change_l < delta*inner_change_0:
+                    break
             
         cnt.append(ih+1)
 
