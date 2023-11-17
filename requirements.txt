@@ -1,0 +1,11 @@
+numpy
+scipy
+matplotlib
+pandas
+plotly
+# requires pip install
+shootout-opt
+# local installation
+nnfac
+soundfile
+#custom branch of tensorly

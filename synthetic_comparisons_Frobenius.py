@@ -1,12 +1,15 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import NMF_Frobenius as nmf_f 
-import nn_fac
+from nn_fac.nmf import nmf
+#import tensorly as tl #perso branch
+#from tensorly.decomposition import non_negative_parafac_hals
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import sys
 import plotly.io as pio
+import time
 pio.kaleido.scope.mathjax = None
 
 # Personnal comparison toolbox
@@ -17,29 +20,42 @@ from shootout.methods.plotters import plot_speed_comparison
 
 plt.close('all')
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro"]
-if len(sys.argv)==1:
-    nb_seeds = 0 #no run
+if len(sys.argv)==1 or int(sys.argv[1])==0:
+    seeds = [] #no run
+    skip=True
 else:
-    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
-name = "l2_run-02-14-2023"
+    seeds = list(np.arange(int(sys.argv[1])))
+    skip=False
+
+variables = {
+    "add_track" : {"distribution" : "uniform"},
+    "mnr" : [[200,100,5],[1000,400,20]],
+    "NbIter" : [200], # for Lee and Seung also
+    "NbIter_inner" : 100,
+    "SNR" : [100],
+    "delta" : 0.1,
+    "seed" : seeds,
+    "distribution" : "uniform",
+    "show_it" : 100,
+    "epsilon" : 1e-8,
+    "tol" : 0
+}
+
+name = "l2_run-10-05-2023"
+algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro"]
+
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
-                nb_seeds=nb_seeds, seeded_fun=True,
-                mnr = [[200,100,5], [1000,400,20]],
-                SNR = [100],
-                NbIter_inner = [100],
-                delta = 0.1
-                )
-def one_run(mnr=[100,100,10],SNR=50, NbIter=3000,tol=0,NbIter_inner=10, seed=1,delta=0.4):
-    m, n, r = mnr
+                skip=skip, **variables)
+def one_run(**cfg):
+    m, n, r = cfg["mnr"]
     # Fixed the signal 
-    rng = np.random.RandomState(seed+20)
+    rng = np.random.RandomState(cfg["seed"]+20)
     Worig = rng.rand(m, r) 
     Horig = rng.rand(r, n)  
     Vorig = Worig.dot(Horig)
 
     # prints
-    verbose = False
+    verbose = True
 
     # Initialization for H0 as a random matrix
     Hini = rng.rand(r, n)
@@ -47,25 +63,39 @@ def one_run(mnr=[100,100,10],SNR=50, NbIter=3000,tol=0,NbIter_inner=10, seed=1,d
     
     # adding Gaussian noise to the observed data
     N = rng.randn(m,n)
-    sigma = 10**(-SNR/20)*np.linalg.norm(Vorig)/np.linalg.norm(N)
+    sigma = 10**(-cfg["SNR"]/20)*np.linalg.norm(Vorig)/np.linalg.norm(N)
     V = Vorig + sigma*N
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
-    error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(V,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, delta=delta, verbose=verbose)
-    error2, W2, H2, toc2, cnt2  = nmf_f.Grad_descent(V , Wini, Hini, NbIter, NbIter_inner, tol=tol, delta=delta, verbose=verbose)
-    error3, W3, H3, toc3, cnt3  = nmf_f.NeNMF(V, Wini, Hini, tol=tol, nb_inner=NbIter_inner, itermax=NbIter, delta=delta, verbose=verbose)
+    error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(V,  Wini, Hini, cfg["NbIter"], cfg["NbIter_inner"],tol=cfg["tol"], legacy=False, delta=cfg["delta"], verbose=verbose)
+    error2, W2, H2, toc2, cnt2  = nmf_f.Grad_descent(V , Wini, Hini, cfg["NbIter"], cfg["NbIter_inner"], tol=cfg["tol"], delta=cfg["delta"], verbose=verbose)
+    error3, W3, H3, toc3, cnt3  = nmf_f.NeNMF(V, Wini, Hini, tol=cfg["tol"], nb_inner=cfg["NbIter_inner"], itermax=cfg["NbIter"], delta=cfg["delta"], verbose=verbose)
     # Fewer max iter because too slow
-    W4, H4, error4, toc4, cnt4 = nn_fac.nmf.nmf(V, r, init="custom", U_0=np.copy(Wini), V_0=np.copy(Hini), n_iter_max=NbIter, tol=tol, update_rule='hals',beta=2, return_costs=True, NbIter_inner=NbIter_inner, delta=delta, verbose=verbose)
+    
+    # With Tensorly --> too slow
+    # callback def
+    #toc4=[]
+    #error4=[]
+    #cnt4=[]
+    #norm_tensor = tl.norm(V,2)**2
+    #def callback_call(cp_tensor,error, inner_iter=None):
+        #toc4.append(time.perf_counter())
+        #error4.append(np.sqrt(error*2*norm_tensor)/m/n) #err in cp is 1/2 \| \|_F^2
+        #if inner_iter is not None:
+            #cnt4.append(inner_iter)
+    #[W4, H4], _, _ = non_negative_parafac_hals(V, r, init=(None,[np.copy(Wini),np.copy(Hini).T]), n_iter_max=cfg["NbIter"], tol=cfg["tol"], return_errors=True, inner_iter_max=cfg["NbIter_inner"], inner_tol=cfg["delta"]*5, verbose=verbose, callback=callback_call)
+    #toc4 = [toc4[i]-toc4[0] for i in range(len(toc4))]
+    # Q: error4 is right format?
+    
+    _, _, error4, toc4, cnt4 = nmf(V, r, init="random", n_iter_max=cfg["NbIter"], tol=cfg["tol"], return_costs=True, NbIter_inner=cfg["NbIter_inner"], delta=cfg["delta"], verbose=verbose)
 
-    # Proposed
-    error1, W1, H1, toc1, cnt1  = nmf_f.NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, delta=delta, verbose=verbose, use_best=False, gamma=1)
-    error5, W5, H5, toc5, cnt5 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose, gamma=1.9)
-    #error6, W6, H6, toc6, cnt6 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, gamma=1)
+    error1, W1, H1, toc1, cnt1  = nmf_f.NeNMF_optimMajo(V, Wini, Hini, tol=cfg["tol"], itermax=cfg["NbIter"], nb_inner=cfg["NbIter_inner"], delta=cfg["delta"], verbose=verbose, use_best=False, gamma=1)
+    error5, W5, H5, toc5, cnt5 = nmf_f.NMF_proposed_Frobenius(V, Wini, Hini, cfg["NbIter"], cfg["NbIter_inner"], tol=cfg["tol"], delta=cfg["delta"], verbose=verbose, gamma=1.9)
 
     #   algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro"]
-    return {"errors" : [error0, error1, error2, error3, error4, error5],#, error6], 
-            "timings" : [toc0, toc1, toc2, toc3, toc4, toc5],#, toc6],
-            "cnt" : [cnt0[::10], cnt1[::10], cnt2[::10], cnt3[::10], cnt4[::10], cnt5[::10]]#, cnt6[::10]]
+    return {"errors" : [error0, error1, error2, error3, error4, error5], 
+            "timings" : [toc0, toc1, toc2, toc3, toc4, toc5],
+            "cnt" : [cnt0[::10], cnt1[::10], cnt2[::10], cnt3[::10], cnt4[::10], cnt5[::10]]
             }
 
 
@@ -75,7 +105,6 @@ import shootout.methods.post_processors as pp
 pio.templates.default= "plotly_white"
 
 df = pd.read_pickle("Results/"+name)
-nb_seeds = df["seed"].max()+1 # get nbseed from data
 
 # TODO: shootout plots
 ## Using shootout for plotting and postprocessing
@@ -83,7 +112,6 @@ nb_seeds = df["seed"].max()+1 # get nbseed from data
 #scores_time, scores_it, timings, iterations = pp.find_best_at_all_thresh(df,thresh, nb_seeds)
 
 # ----------------------- Plot --------------------------- #
-# TODO: go to plotly
 #fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
 #fig_winner.show()
 
@@ -91,22 +119,24 @@ nb_seeds = df["seed"].max()+1 # get nbseed from data
 #df = pp.error_at_time_or_it(df, time_stamps=[0.1, 0.5, 1], it_stamps=[10, 50, 300])
 
 # Group up columns
-df = pp.regroup_columns(df, keys=["mnr"], how_many=3)
+#df = pp.regroup_columns(df, keys=["mnr"], how_many=3)
 
 # Interpolating time (choose fewer points for better vis), adaptive grid since time varies across plots
-df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True)
+ovars_interp =  ["mnr", "SNR", "algorithm"]
+df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True, groups=ovars_interp)
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
-ovars = ["mnr"]
+ovars = ["mnr", "SNR","seed"]
 df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars, err_name="errors_interp", time_name="timings_interp")
 df_conv = df_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 
 # Median plot
-df_conv_median_time = pp.median_convergence_plot(df_conv, type="timings", mean=False)
+df_conv_median_time = pp.median_convergence_plot(df_conv, type_x="timings", mean=False)
 
 # Convergence plots with all runs
-pxfig = px.line(df_conv_median_time, 
+pxfig = px.line(
+            df_conv_median_time,
             x="timings", 
             y= "errors", 
             color='algorithm',
@@ -129,8 +159,8 @@ pxfig.update_layout(
     font_size = 12,
     width=450*1.62, # in px
     height=450,
-    xaxis1=dict(range=[0,30],title_text="Time (s)"),
-    xaxis2=dict(range=[0,3],title_text="Time (s)"),
+    xaxis1=dict(range=[0,3],title_text="Time (s)"),
+    xaxis2=dict(range=[0,0.2],title_text="Time (s)"),
     yaxis1=dict(title_text="Fit"),
     yaxis2=dict(title_text="")
 )

@@ -11,6 +11,7 @@ from numpy import linalg as la
 from matplotlib import pyplot as plt
 #from tempfile import TemporaryFile # save numpy arrays 
 import time
+from numpy.matlib import repmat
 #import tensorly as tl
 
 
@@ -118,7 +119,7 @@ def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, p
 #------------------------------------
 #  NMF algorithm proposed version
 
-def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_LeeS=True, print_it=100, delta=np.Inf, gamma=1.9):
+def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -136,8 +137,6 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
         the maximum number of iterations.
     tol: float
         stopping criterion, algorithm stops if error<tol.
-    use_LeeS: bool
-        if True, the majorant is the elementwise maximum between the proposed majorant and Lee and Seung majorant.
     print_it: int
         if verbose is true, sets the number of iterations between each print.
         default: 100
@@ -145,7 +144,6 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
         relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
         A good value empirically: 0.4
         default: np.Inf (no dynamic stopping)
-
 
     Returns
     -------
@@ -161,8 +159,8 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
     """
     
     H = H0.copy()
-    if use_LeeS:
-        gamma = 1
+    #if use_LeeS:
+        #gamma = 1
     toc = [0] 
     tic = time.perf_counter()
 
@@ -172,8 +170,9 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
     # FIXED W ESTIMATE H
     A1 = W.T.dot(W)
     B1 = W.T@V
-    sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None])
-    aux_H = gamma*sqrtB1/A1.dot(sqrtB1)        
+    #sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None])
+    #aux_H = gamma*sqrtB1/A1.dot(sqrtB1)
+    aux_H = gamma/repmat(np.sum(A1,axis=1)[:,None],1,V.shape[1])
 
     error_norm = np.prod(V.shape)
     Vnorm_sq = np.linalg.norm(V)**2
@@ -184,11 +183,7 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, use_L
     for k in range(NbIter):
         
         A1H = A1.dot(H)
-        if use_LeeS:
-            aux_H_used = np.maximum(aux_H, H/A1H)
-        else:
-            aux_H_used = aux_H
-        deltaH =  np.maximum(aux_H_used*(B1 - A1H), epsilon-H)
+        deltaH =  np.maximum(aux_H*(B1 - A1H), epsilon-H)
         H = H + deltaH
         if k==0:
             inner_change_0 = np.linalg.norm(deltaH)**2

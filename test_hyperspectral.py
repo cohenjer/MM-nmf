@@ -6,7 +6,7 @@ import nn_fac
 import pandas as pd
 import scipy.io
 from shootout.methods.runners import run_and_track
-from shootout.methods.post_processors import df_to_convergence_df
+from shootout.methods.post_processors import df_to_convergence_df, interpolate_time_and_error, median_convergence_plot
 import sys
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
@@ -48,27 +48,40 @@ Wref = np.transpose(Wref['References'])
 # --------------------------------------------------------------------
 # Solving with nonnegative least squares
 #from tensorly.tenalg.proximal import fista
-
-algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "fastMU_KL_approx"]
-name = "hsi_nmf_test_02_14_2023"
-if len(sys.argv)==1:
-    nb_seeds = 0 #no run
+if len(sys.argv)==1 or sys.argv[1]==0:
+    seeds = [] #no run
+    skip=True
 else:
-    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
+    seeds = list(np.arange(int(sys.argv[1])))
+    skip=False
+
+variables = {
+    "NbIter" : 200, 
+    "NbIter_inner" : 100,
+    "delta" : 0.1,
+    "epsilon" : 1e-8,
+    "seed" : seeds,
+    "tol" : 0,
+}
+
+algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL"]
+name = "hsi_nmf_test_10_06_2023"
+
 @run_and_track(
-    nb_seeds=nb_seeds,
     algorithm_names=algs, 
     path_store="Results/",
     name_store=name,
+    skip=skip,
+    **variables
 )
 def one_run(rank = 6,
             NbIter = 200,
             NbIter_inner = 100,
-            delta=0.1,
+            delta = 0.1,
             epsilon = 1e-8,
             tol=0,
-            verbose=False,
-            print_it=100,
+            verbose=True,
+            print_it=200,
             seed = 1,
             ):
     # Seeding
@@ -79,7 +92,7 @@ def one_run(rank = 6,
 
     # Frobenius algorithms
     error0, W0, H0, toc0, cnt0 = nmf_f.NMF_Lee_Seung(M,  Wini, Hini, NbIter, NbIter_inner,tol=tol, legacy=False, epsilon=epsilon, verbose=verbose, delta=delta, print_it=print_it)   
-    error1, W1, H1, toc1, cnt1 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose, print_it=print_it, gamma=1.9)
+    error1, W1, H1, toc1, cnt1 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, delta=delta, verbose=verbose, print_it=print_it, gamma=1.9)
     #error2, W2, H2, toc2, cnt2 = nmf_f.NMF_proposed_Frobenius(M, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, print_it=print_it, gamma=1)
     error3, W3, H3, toc3, cnt3  = nmf_f.NeNMF_optimMajo(M, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon, verbose=verbose, delta=delta, print_it=print_it, gamma=1)
     error4, W4, H4, toc4, cnt4  = nmf_f.Grad_descent(M , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon, verbose=verbose, delta=delta, print_it=print_it)
@@ -88,27 +101,33 @@ def one_run(rank = 6,
 
     # KL algorithms
     error7, W7, H7, toc7, cnt7 = nmf_kl.Lee_Seung_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=print_it)
-    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=print_it, use_LeeS=False, gamma=1.9, true_hessian=True)
-    error9, W9, H9, toc9, cnt9 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=print_it, use_LeeS=False, gamma=1.9, true_hessian=False)
+    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(M, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, print_it=print_it, gamma=1.9)
 
     return {
-        "errors": [error1,error3,error4, error5, error0, error6, error7, error8, error9],
-        "timings": [toc1,toc3,toc4,toc5,toc0,toc6,toc7,toc8,toc9],
-        "loss": 6*["l2"]+3*["kl"],
+        "errors": [error1,error3,error4, error5, error0, error6, error7, error8],
+        "timings": [toc1,toc3,toc4,toc5,toc0,toc6,toc7,toc8],
+        "loss": 6*["l2"]+2*["kl"],
     }
 
 df = pd.read_pickle("Results/"+name)
 
-# Making a convergence plot dataframe
-df_l2_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               filters={"loss":"l2"})
+# interpolation
+ovars_iterp = ["algorithm"]
+df = interpolate_time_and_error(df, npoints = 100, adaptive_grid=True, groups=ovars_iterp)
 
-df_kl_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               filters={"loss":"kl"})
+# Making a convergence plot dataframe
+df_l2_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=[], filters={"loss":"l2"}, err_name="errors_interp", time_name="timings_interp")
+df_l2_conv = df_l2_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+
+df_kl_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=[], filters={"loss":"kl"}, err_name="errors_interp", time_name="timings_interp")
+df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+
+df_l2_conv_median_time = median_convergence_plot(df_l2_conv, type_x="timings")
+df_kl_conv_median_time = median_convergence_plot(df_kl_conv, type_x="timings")
 # ----------------------- Plot --------------------------- #
 # Convergence plots with all runs
-pxfig = px.line(df_l2_conv,
-            line_group="groups",
+pxfig = px.line(df_l2_conv_median_time,
+            #line_group="groups",
             x="timings",
             y="errors",
             color='algorithm',
@@ -127,8 +146,8 @@ pxfig.update_layout(
     font_size = 12,
     width=450*1.62/2, # in px
     height=450,
-    xaxis=dict(range=[0,50], title_text="Time (s)"),
-    yaxis=dict(range=np.log10([0.00145,0.0020]), title_text="Fit")
+    #xaxis=dict(range=[0,50], title_text="Time (s)"),
+    #yaxis=dict(range=np.log10([0.00145,0.0020]), title_text="Fit")
 )
 
 pxfig.update_xaxes(
@@ -144,8 +163,8 @@ pxfig.write_image("Results/"+name+"_fro.pdf")
 pxfig.write_image("Results/"+name+"_fro.pdf")
 pxfig.show()
 
-pxfig2 = px.line(df_kl_conv,
-            line_group="groups",
+pxfig2 = px.line(df_kl_conv_median_time,
+            #line_group="groups",
             x="timings",
             y= "errors",
             color='algorithm',

@@ -11,7 +11,7 @@ from scipy import signal
 import plotly.express as px
 # personal toolbox
 from shootout.methods.runners import run_and_track
-from shootout.methods.post_processors import df_to_convergence_df
+import shootout.methods.post_processors as pp
 import sys
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
@@ -68,37 +68,54 @@ rank = 88*2 # one template per note only for speed
 #Htrue = sparsify(np.random.rand(rank,n),0.5)
 #Y = Wgt@Htrue + 1e-3*np.random.rand(*Y.shape)
 
-name = "audio_test_02-14-2023"
 
 df = pd.DataFrame()
 
 
-if len(sys.argv)==1:
-    nb_seeds = 0 #no run
+if len(sys.argv)==1 or sys.argv[1]==0:
+    seeds = [] #no run
+    skip=True
 else:
-    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
-algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "fastMU_KL_approx"]
+    seeds = list(np.arange(int(sys.argv[1])))
+    skip=False
+
+variables = {
+    "NbIter" : 100, 
+    "NbIter_inner" : 100,
+    "delta" : 0.1,
+    "epsilon" : 1e-8,
+    "seed" : seeds,
+    "sigma" : 0.1,
+    "tol" : 0
+}
+
+name = "audio_test_10-06-2023"
+algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL"]
 # TODO: better error message when algs dont match
 
 @run_and_track(
-    nb_seeds=nb_seeds,
     algorithm_names=algs, 
     path_store="Results/",
     name_store=name,
+    skip=skip,
+    **variables
 )
 def one_run(rank = rank,
             tol = 0,
+            seed = 1,
+            sigma = 0.1,
             NbIter = 100,
             NbIter_inner = 100,
             delta=0.1,
             verbose=True,
             epsilon = 1e-8):
     # Perturbing the initialization for randomization
-    Wini = Wgt + 0.1*np.random.rand(m,rank)
-    Hini = np.random.rand(rank, n)
+    rng = np.random.RandomState(seed+20)
+    Wini = Wgt + sigma*rng.rand(m,rank)
+    Hini = rng.rand(rank, n)
 
     # Frobenius algorithms
-    error0, W0, H0, toc0, cnt0 = nmf_f.NMF_proposed_Frobenius(Y, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=False, delta=delta, verbose=verbose, gamma=1.9)
+    error0, W0, H0, toc0, cnt0 = nmf_f.NMF_proposed_Frobenius(Y, Wini, Hini, NbIter, NbIter_inner, tol=tol, delta=delta, verbose=verbose, gamma=1.9)
     #error1, W1, H1, toc1, cnt1 = nmf_f.NMF_proposed_Frobenius(Y, Wini, Hini, NbIter, NbIter_inner, tol=tol, use_LeeS=True, delta=delta, verbose=verbose, gamma=1)
     error2, W2, H2, toc2, cnt2  = nmf_f.NeNMF_optimMajo(Y, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, epsilon=epsilon, verbose=verbose, delta=delta, gamma=1)
     error3, W3, H3, toc3, cnt3  = nmf_f.Grad_descent(Y , Wini, Hini, NbIter, NbIter_inner, tol=tol, epsilon=epsilon, verbose=verbose, delta=delta)
@@ -108,30 +125,38 @@ def one_run(rank = rank,
 
     # KL algorithms
     error7, W7, H7, toc7, cnt7 = nmf_kl.Lee_Seung_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, epsilon=epsilon)
-    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=True)
-    error9, W9, H9, toc9, cnt9 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=False)
+    error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, gamma=1.9, epsilon=epsilon)
 
 
     return {
-        "errors": [error0, error2, error3, error4, error5, error6, error7, error8, error9],
-        "timings": [toc0,toc2,toc3,toc4,toc5,toc6, toc7, toc8, toc9],
-        "loss": 6*["l2"]+3*["kl"],
+        "errors": [error0, error2, error3, error4, error5, error6, error7, error8],
+        "timings": [toc0,toc2,toc3,toc4,toc5,toc6, toc7, toc8],
+        "loss": 6*["l2"]+2*["kl"],
             }
     
 
 df = pd.read_pickle("Results/"+name)
 
+ovars_iterp = ["algorithm"]
+df = pp.interpolate_time_and_error(df, npoints = 200, adaptive_grid=True, groups=ovars_iterp)
+
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
-df_l2_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               filters={"loss":"l2"})
+df_l2_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"l2"}, err_name="errors_interp", time_name="timings_interp")
+df_l2_conv = df_l2_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 
-df_kl_conv = df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               filters={"loss":"kl"})
+df_kl_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"kl"}, err_name="errors_interp", time_name="timings_interp")
+df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+
+df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type_x="timings")
+df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type_x="timings")
 # ----------------------- Plot --------------------------- #
 
 # Convergence plots with all runs
-pxfig = px.line(df_l2_conv, line_group="groups", x="timings", y= "errors", color='algorithm', 
+pxfig = px.line(df_l2_conv_median_time, #line_group="groups",
+                x="timings", y= "errors", color='algorithm', 
             line_dash='algorithm',
             log_y=True)
 
@@ -165,9 +190,10 @@ pxfig.write_image("Results/"+name+"_fro.pdf")
 pxfig.show()
 
 
-pxfig2 = px.line(df_kl_conv, line_group="groups", x="timings", y= "errors", color='algorithm',
-            line_dash='algorithm',
-            log_y=True)
+pxfig2 = px.line(df_kl_conv_median_time, #line_group="groups", 
+                 x="timings", y= "errors", color='algorithm',
+                 line_dash='algorithm',
+                 log_y=True)
 
 # Final touch
 pxfig2.update_traces(

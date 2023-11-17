@@ -12,34 +12,35 @@ import plotly.io as pio
 # you can get it at 
 # https://github.com/cohenjer/shootout
 from shootout.methods.runners import run_and_track
-from shootout.methods.post_processors import find_best_at_all_thresh, df_to_convergence_df, error_at_time_or_it
-from shootout.methods.plotters import plot_speed_comparison
+from shootout.methods.post_processors import df_to_convergence_df
 from shootout.methods.post_processors import interpolate_time_and_error, median_convergence_plot
 
 plt.close('all')
 
 # --------------------- Choose parameters for grid tests ------------ #
-algs = ["Proposed-testing delta and inner iters"]
-if len(sys.argv)==1:
-    nb_seeds = 0 #no run
+if len(sys.argv)==1 or sys.argv[1]==0:
+    seeds = [] #no run
+    skip=True
 else:
-    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
+    seeds = list(np.arange(int(sys.argv[1])))
+    skip=False
 
-name = "Fro_run_delta-choice-02-14-2023"
 variables = {
     'mnr' : [[200,100,5]],
     'NbIter_inner' : [100],
     'delta' : [0,0.001,0.01,0.05,0.1,0.3,0.6,0.9],
     'SNR' : [100],
+    "seed": seeds,
+    #"distribution" : "uniform"
 }
 
+algs = ["Proposed-testing delta and inner iters"]
+name = "Fro_run_delta-choice-10-05-2023"
+
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name,
-                add_track = {"distribution" : "uniform"},
-                nb_seeds=nb_seeds,
-                seeded_fun=True,
-                single_method=True,
-                **variables
-                )
+               skip=skip,
+               **variables
+               )
 def one_run(mnr=[100,100,5],SNR=50, NbIter=20000, tol=0, NbIter_inner=10, verbose=False, show_it=1000, delta=0.4, seed=1):
     NbIter = int(NbIter*(delta+0.1)) # will be 1500 for 100 iter inner
     m, n, r = mnr
@@ -60,7 +61,7 @@ def one_run(mnr=[100,100,5],SNR=50, NbIter=20000, tol=0, NbIter_inner=10, verbos
     V = Vorig + sigma*N
 
     # One noise, one init; NMF is not unique and nncvx so we will find several results
-    error, W, H, toc, cnt  = nmf_fro.NeNMF_optimMajo(V, Wini, Hini, tol=tol, itermax=NbIter, nb_inner=NbIter_inner, delta=delta, verbose=verbose)
+    error, W, H, toc, cnt  = nmf_fro.NMF_proposed_Frobenius(V, Wini, Hini, NbIter, NbIter_inner, tol=tol, delta=delta, verbose=verbose)
 
     return {"errors" : error, 
             "timings" : toc,
@@ -75,13 +76,10 @@ pio.templates.default= "plotly_white"
 
 # Load results
 df = pd.read_pickle("Results/"+name)
-nb_seeds = df["seed"].max()+1 # get nbseed from data
-
-# TODO improve: list variables are split in runs, and therefore dont match between df and variables
-variables.pop('mnr')
 
 # Interpolating time (choose fewer points for better vis), adaptive grid since time varies across plots
-df = interpolate_time_and_error(df, npoints = 100, adaptive_grid=True)
+ovars_inter = ["algorithm", "delta"]
+df = interpolate_time_and_error(df, npoints = 100, adaptive_grid=True, groups=ovars_inter)
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
@@ -95,7 +93,7 @@ df_conv = df_to_convergence_df(
 df_conv = df_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 
 # Converting to median for iterations and timings
-df_conv_median_time = median_convergence_plot(df_conv, type="timings")
+df_conv_median_time = median_convergence_plot(df_conv, type_x="timings")
 
 # Convergence plots with all runs
 pxfig = px.line(df_conv_median_time, 
@@ -104,7 +102,7 @@ pxfig = px.line(df_conv_median_time,
             color='delta',
             line_dash='delta',
             log_y=True,
-            labels={"delta": "$\delta$"}
+            labels={"delta": r"$\delta$"}
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
 )
@@ -142,7 +140,7 @@ pxfig.show()
 # TODO: improve shootout to better handle this case
 df_conv_cnt = df_to_convergence_df(df, groups=True, groups_names=ovars, err_name="cnt", other_names=ovars, time_name=False, max_time=False)
 # 2. median plots
-df_conv_median_cnt = median_convergence_plot(df_conv_cnt, type=False, err_name="cnt")
+df_conv_median_cnt = median_convergence_plot(df_conv_cnt, type_x=None, err_name="cnt")
 
 pxfig2 = px.line(df_conv_median_cnt, 
             x="it", 
@@ -152,7 +150,7 @@ pxfig2 = px.line(df_conv_median_cnt,
             log_y=True,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
-            labels={"delta": "$\delta$"}
+            labels={"delta": r"$\delta$"}
 )
 
 # Final touch

@@ -177,113 +177,6 @@ def Lee_Seung_KL(V,  Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000
 # Beta divergence method 
 ############################################################################
 
-def Fevotte_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, epsilon=1e-8, tol = 1e-7, legacy=False, verbose=False, print_it=100, delta=np.Inf):
-
-    """
-    Method proposed in C. Fevotte & J. Idier, "Algorithms for nonnegative matrix factorization
-    with the beta-divergence ", Neural Compuation, 2011.
-    FOR THE KK CASE --> BETA = 1
-
-    Parameters
-    ----------
-    V : non-negative matrix of size m x n (data)
-    W0 : basis, non-negative matrix of size m x p 
-    H0 : gains, non-negative matrix of size p x n.
-    NbIter :number of iterations
-    delta: float
-        relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
-        A good value empirically: 0.01
-        default: np.Inf (no dynamic stopping)
-
-    legacy: bool, default: False
-        if True, update is thresholded so that W and H >= epsilon at all times.
-        This ensures global convergence to a stationary point.
-
-    Returns
-    -------
-    W and H such that V = WH
-    crit: beta-divergence though iteration 
-    
-    Reference
-    ----------
-    C. Fevotte & J. Idier, "Algorithms for nonnegative matrix factorization
-    with the beta-divergence ", Neural Compuation, 2011.
-
-    """
-    toc = [0]
-    tic = time.perf_counter()
-
-    if verbose:
-        print("\n------Fevotte_Idier_KL running------")
-    W = Wini.copy()
-    H = Hini.copy()
-    
-    if legacy:
-        epsilon=0
-     
-    m, n = V.shape   
-    WH = W.dot(H)
- 
-    crit = [compute_error(V, WH, ind0, ind1)]
-    cnt = []
-     
-    for k in range(NbIter):
-        
-        sumH = (np.sum(H, axis = 1)[None,:]) 
-        inner_change_0 = 1
-        inner_change_l = np.Inf
-        for l in range(nb_inner):
-            deltaW =  np.maximum(W *(((V/WH).dot(H.T))/sumH-1), epsilon-W)
-            W = W + deltaW
-            WH = W.dot(H) 
-            if l==0:
-                inner_change_0 = np.linalg.norm(deltaW)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaW)**2
-            if inner_change_l < delta*inner_change_0:
-                break
-        cnt.append(l)
-              
-        # FIXED W ESTIMATE H
-        
-        scale = np.sum(W, axis = 0)
-        inner_change_0 = 1
-        inner_change_l = np.Inf
-        for l in range(nb_inner):    
-            deltaH = np.maximum(H * ((W.T.dot(V/WH))/scale[:, None]-1), epsilon-H)
-            H = H + deltaH
-            WH = W.dot(H)
-            if l==0:
-                inner_change_0 = np.linalg.norm(deltaH)**2
-            else:
-                inner_change_l = np.linalg.norm(deltaH)**2
-            if inner_change_l < delta*inner_change_0:
-                break
-        cnt.append(l)
-
-        # Here is the main difference with Lee and Sung: normalization 
-        # Should not change anything however...
-        W = np.maximum(W / scale[None,:], epsilon)
-        H = np.maximum(H * scale[:,None], epsilon)
-               
-        crit.append(compute_error(V, WH, ind0, ind1))
-        toc.append(time.perf_counter()-tic)
-        if verbose:
-            if k%print_it==0:
-                print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-
-        if tol: 
-            if (crit[k] <= tol):
-                if verbose:
-                    print("Loss at iteration {}: {}".format(k+1,crit[-1]))
-                return  crit, W, H, toc, cnt
-    
-    if verbose:
-        print("Loss at iteration {}: {}".format(k+1,crit[-1]))
- 
-    return  crit, W, H, toc, cnt
-
-
 #####-------------------------------------------------------------
 # NeNMF
 # from https://www.academia.edu/7815546/NeNMF_An_Optimal_Gradient_Method_for_Nonnegative_Matrix_Factorization
@@ -408,7 +301,7 @@ def NeNMF_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10, NbIter=10000, eps
 
     
 def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
-                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9, true_hessian=True):
+                NbIter=10000, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, delta=np.Inf, gamma=1.9):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -461,36 +354,21 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
     crit = [compute_error(V, WH, ind0, ind1)]
     cnt = []
     
-    if use_LeeS:
-        gamma = 1
-
-    # for Quyen's code
-    Vinv = 1/(V+epsilon)
-    
     for k in range(NbIter):
 
-        if true_hessian:
-            # Uses the true Hessian but only at first iteration of inner loop (should change but too costly)
-            sum_H = np.sum(H, axis = 1)[None,:] 
-            sum_H2 = np.sum(H, axis = 0)[None,:]
-            HH2 = (H*sum_H2).T
-        else:
-            sum_H = np.sum(H, axis = 1)[None,:] 
-            sum_H2= np.sum(H, axis = 0)[None,:]
-            aux_W = gamma*1/(Vinv.dot((H*sum_H2).T))
+        # Uses the true Hessian but only at first iteration of inner loop (should change but too costly)
+        sum_H = np.sum(H, axis = 1)[None,:] 
+        sum_H2 = np.sum(H, axis = 0)[None,:]
+        HH2 = (H*sum_H2).T
         inner_change_0 = 1
         inner_change_l = np.Inf
         for iw in range(nb_inner): 
-            if true_hessian and k>0:
-                aux_W = gamma*1/((V/WH**2).dot(HH2))
             if k==0:
                 # Lee Seung first iter
                 deltaW =  np.maximum(W *(((V/WH).dot(H.T))/sum_H-1), epsilon-W)
             else:
-                if use_LeeS:
-                    deltaW = np.maximum(np.maximum(aux_W, W/sum_H)*((V/WH).dot(H.T) - sum_H), epsilon-W)
-                else:
-                    deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
+                aux_W = gamma*1/((V/WH**2).dot(HH2))
+                deltaW = np.maximum(aux_W*((V/WH).dot(H.T) - sum_H), epsilon-W)
             W = W + deltaW
             WH = W.dot(H)
             if k>0: # no early stopping the first iteration
@@ -504,29 +382,19 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
         cnt.append(iw+1)
             
         # FIXED W ESTIMATE H  
-        if true_hessian:
-            sum_W = np.sum(W, axis = 0)[:, None]
-            sum_W2= np.sum(W, axis = 1)[:, None]
-            WW2 = (W*sum_W2).T
-        else:
-            sum_W = np.sum(W, axis = 0)[:, None]
-            sum_W2= np.sum(W, axis = 1)[:, None]
-            aux_H =   gamma*1/((W*sum_W2).T.dot(Vinv))
+        sum_W = np.sum(W, axis = 0)[:, None]
+        sum_W2= np.sum(W, axis = 1)[:, None]
+        WW2 = (W*sum_W2).T
 
         inner_change_0 = 1
         inner_change_l = np.Inf
         for ih in range(nb_inner):
-            if true_hessian and k>0:
-                aux_H = gamma*1/(WW2.dot(V/WH**2))
-            
             if k==0:
                 # LS first iter
                 deltaH = np.maximum(H * ((W.T.dot(V/WH))/sum_W-1), epsilon-H)
             else:
-                if use_LeeS:
-                    deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
-                else:
-                    deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+                aux_H = gamma*1/(WW2.dot(V/WH**2))
+                deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W), epsilon-H)
             H = H + deltaH
             WH = W.dot(H)
             if k>0: # no early stopping the first iteration

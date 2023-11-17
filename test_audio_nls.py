@@ -64,21 +64,32 @@ rank = 88*2 # one template per note only for speed
 #Wgt = Wgt[:,:rank]
 
 # Shootout config
-name = "audio_nls_test_02-14-2023"
-if len(sys.argv)==1:
-    nb_seeds = 0 #no run
+name = "audio_nls_test_10-06-2023"
+
+if len(sys.argv)==1 or sys.argv[1]==0:
+    seeds = [] #no run
+    skip=True
 else:
-    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
+    seeds = list(np.arange(int(sys.argv[1])))
+    skip=False
+
+variables = {
+    "NbIter" : 100, 
+    "delta" : 0,
+    "epsilon" : 1e-8,
+    "seed" : seeds,
+    "sigma" : 1,
+}
+
 df = pd.DataFrame()
 
-algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "fastMU_KL_approx"]
+algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL"]
 
 @run_and_track(
-    nb_seeds=nb_seeds,
     algorithm_names=algs, 
     path_store="Results/",
     name_store=name,
-    seeded_fun=True,
+    **variables
 )
 def one_run(rank = rank,
             NbIter = 100,
@@ -87,7 +98,6 @@ def one_run(rank = rank,
             epsilon = 1e-8,
             seed=1, # will actually be seed idx from run and track
             verbose=False,
-            nit_mu=10 # prerun MU before fastMU
             ):
     # Seeding
     rng = np.random.RandomState(seed+20)
@@ -96,7 +106,7 @@ def one_run(rank = rank,
 
     # Frobenius algorithms
     # init fastMU with few steps of MU
-    error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=False, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1.9)
+    error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1.9)
     #error1, H1, toc1, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1)
     error2, H2, toc2 = nls_f.NeNMF_optimMajo(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
     error3, H3, toc3 = nls_f.Grad_descent(Y , Wgt, Hini, NbIter,  epsilon=epsilon, verbose=verbose, delta=delta, gamma=1.9)
@@ -118,14 +128,13 @@ def one_run(rank = rank,
 #    error7 = error7[:-1]+error71[(nit_mu-1):] # use error from Proposed
 #    toc7 = toc7 + [toc7[-1] +  i for i in toc71[nit_mu:]]
     error8, H8, toc8 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, epsilon=epsilon)
-    error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=True)
-    error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=False, gamma=1.9,  epsilon=epsilon, true_hessian=False)
+    error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, gamma=1.9, epsilon=epsilon)
 
 
     return {
-        "errors": [error0, error2, error3, error4, error5, error6, error8, error9, error10],
-        "timings": [toc0,toc2,toc3,toc4,toc5,toc6,toc8, toc9, toc10],
-        "loss": 6*["l2"]+3*["kl"],
+        "errors": [error0, error2, error3, error4, error5, error6, error8, error9],
+        "timings": [toc0,toc2,toc3,toc4,toc5,toc6,toc8, toc9],
+        "loss": 6*["l2"]+2*["kl"],
             }
     
 
@@ -140,16 +149,14 @@ df = pd.read_pickle("Results/"+name)
 #scores_time, scores_it, timings, iterations = find_best_at_all_thresh(df,thresh, Nb_seeds)
 
 # Interpolating
-df = pp.interpolate_time_and_error(df, npoints = 200, adaptive_grid=True)
+ovars_iterp = ["algorithm"]
+df = pp.interpolate_time_and_error(df, npoints = 200, adaptive_grid=True, groups=ovars_iterp)
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
 df_l2_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
                                filters={"loss":"l2"}, err_name="errors_interp", time_name="timings_interp")
 df_l2_conv = df_l2_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
-
-df_l2_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               filters={"loss":"l2"})
 
 df_kl_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
                                filters={"loss":"kl"}, err_name="errors_interp", time_name="timings_interp")
@@ -159,9 +166,8 @@ df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_int
 #fig_winner.show()
 
 # Median plots
-df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type="timings")
-#df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it, type="iterations")
-df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type="timings")
+df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type_x="timings")
+df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type_x="timings")
 
 # Convergence plots with all runs
 pxfig = px.line(df_l2_conv_median_time, 

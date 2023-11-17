@@ -137,13 +137,100 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
     return crit, H, toc
     
 
+############################################################################
+############################ Alternating Armijo GD METHOD  
+############################################################################
 
+def GD_KL(V, W, Hini, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf):
+    
+    """
+    The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
+    V = WH + N where N represents to the noise --> It leads to find W,H in miminize [ V log (V/WH) - V + WH ] s.t. W, H >= 0
+
+    The algorithm used is Alternating Projected Gradient Descent with naive Armijo backtracking to select the stepsize.
+    
+    Parameters
+    ----------
+    Vorig : MxN array 
+        matrix with all entries are non-negative Vorig = W*H
+    V : MxN array 
+        observation matrix that is Vorig + B where B represents to the noise.
+    W : MxR array
+        input mixing matrix with all entries are non-negative.
+    H0 : RxN array
+        matrix with all entries are non-negative.
+    NbIter : int
+        the maximum number of iterations.
+    delta: float
+        relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
+        A good value empirically: 0.01
+        default: np.Inf (no dynamic stopping)
+    
+    Returns
+    -------
+    err : darray
+        vector that saves the error between Vorig with WH at each iteration.
+    H : RxN array
+        non-negative estimated matrix.
+    W : MxR array
+        non-negative estimated matrix.
+
+    """
+    toc = [0]
+    tic = time.perf_counter()
+    if verbose:
+        print("\n------Proposed_MU_KL running------")
+
+    H = Hini.copy()
+    WH = W.dot(H)
+    gamma = 1
+    ARMIJO_CST = 0.01
+    ARMIJO_DEC = 0.3
+    
+    crit = [compute_error(V, WH)]
+    
+    inner_change_0 = 1
+    inner_change_l = np.Inf
+
+    WH = W.dot(H)
+
+    for k in range(NbIter):
+
+        gradH = (W.T).dot((WH-V)/WH)
+        gradnorm = np.linalg.norm(gradH)**2
+        for i in range(100):
+            Hnew = np.maximum(H - gamma*gradH, epsilon)
+            if crit[-1] - compute_error(V,W@Hnew) > gamma*ARMIJO_CST*gradnorm:
+                deltaH = H - Hnew
+                H = Hnew
+                break
+            gamma = gamma*ARMIJO_DEC
+        WH = W.dot(H)
+        gamma=gamma*10
+        if k==1: #0?
+            inner_change_0 = np.linalg.norm(deltaH)**2
+        else:
+            inner_change_l = np.linalg.norm(deltaH)**2
+        if inner_change_l < delta*inner_change_0:
+            break
+
+        # compute the error 
+        crit.append(compute_error(V, WH))
+        toc.append(time.perf_counter()-tic)
+        if verbose:
+            if k%print_it==0:
+                print("Loss at iteration {}: {}".format(k+1,crit[-1]))
+        # Check if the error is small enough to stop the algorithm 
+
+    if verbose:
+        print("Loss at iteration {}: {}".format(k+1,crit[-1]))
+    return crit, H, toc
 ############################################################################
 ############################ PROPOSED METHOD  
 ############################################################################
 
     
-def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, use_LeeS=False, delta=np.Inf, gamma=1.9, true_hessian=True):
+def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -170,7 +257,6 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, ve
         - "data_sum": alpha_n is chosen as the sum of data rows (for H update) and data columns (for W update)
         - "factors_sum": alpha_n is chosen as the sum of factors columns
         - a float, e.g. alpha_strategy=1, to fix alpha to a specific constant.
- 
     
     Returns
     -------
@@ -190,38 +276,24 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, ve
     H = Hini.copy()
     WH = W.dot(H)
     
-    Vinv = 1/(V+epsilon) # avoid div by zero
     crit = [compute_error(V, WH, ind0, ind1)]
     
     inner_change_0 = 1
     inner_change_l = np.Inf
 
-    if use_LeeS:
-        gamma = 1
-
-    if true_hessian:
-        sum_W = np.sum(W, axis=0)[:,None]
-        sum_W2= np.sum(W, axis=1)[:,None]
-        WH = W.dot(H)
-        WW2 = (W*sum_W2).T
-    else:
-        sum_W = np.sum(W, axis=0)[:,None]
-        sum_W2= np.sum(W, axis=1)[:,None]
-        aux_H = gamma*1/((W*sum_W2).T.dot(Vinv))
+    sum_W = np.sum(W, axis=0)[:,None]
+    sum_W2= np.sum(W, axis=1)[:,None]
+    WH = W.dot(H)
+    WW2 = (W*sum_W2).T
 
     for k in range(NbIter):
-        if true_hessian: # after 1st iteration only
-            aux_H = gamma*1/(WW2.dot(V/WH**2))
-
         # FIXED W ESTIMATE H        
         if k==0:
             # first iteration: LS
-            deltaH = np.maximum(H/sum_W*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+            deltaH = np.maximum(H/sum_W*((W.T).dot(V/WH)- sum_W), epsilon-H)
         else:
-            if use_LeeS:
-                deltaH = np.maximum(np.maximum(aux_H, H/sum_W)*((W.T).dot(V/WH)- sum_W ), epsilon-H)
-            else:
-                deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W ), epsilon-H)
+            aux_H = gamma*1/(WW2.dot(V/WH**2))
+            deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W), epsilon-H)
         H = H + deltaH
         WH = W.dot(H)
         if k==1:

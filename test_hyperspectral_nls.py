@@ -48,23 +48,31 @@ Wref = np.transpose(Wref['References'])
 # --------------------------------------------------------------------
 # Solving with nonnegative least squares
 #from tensorly.tenalg.proximal import fista
-
-algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "fastMU_KL_approx"]
-name = "hsi_nls_test_02_14_2023"
-if len(sys.argv)==1:
-    nb_seeds = 0 #no run
+if len(sys.argv)==1 or sys.argv[1]==0:
+    seeds = [] #no run
+    skip=True
 else:
-    nb_seeds = int(sys.argv[1])  # Change this to >0 to run experiments
+    seeds = list(np.arange(int(sys.argv[1])))
+    skip=False
+
+variables = {
+    "NbIter" : 100, 
+    "delta" : 0,
+    "epsilon" : 1e-16,
+    "seed" : seeds,
+}
+
+algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL"]
+name = "hsi_nls_test_10_06_2023"
 
 @rn.run_and_track(
-    nb_seeds=nb_seeds,
     algorithm_names=algs, 
     path_store="Results/",
     name_store=name,
-    seeded_fun=True)
+    skip=skip,**variables)
 def one_run(NbIter = 100,
             delta = 0,
-            verbose=False,
+            verbose=True,
             epsilon = 1e-16,
             seed = 1,
             ):
@@ -73,8 +81,7 @@ def one_run(NbIter = 100,
     # Init
     Hini = rng.rand(Wref.shape[1], M.shape[1])
 
-    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref, np.copy(Hini), NbIter, use_LeeS=False, delta=delta, verbose=verbose, gamma=1.9, epsilon=epsilon)
-    #error1, H1, toc1 = nls_f.NMF_proposed_Frobenius(M, Wref, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, gamma=1, epsilon=epsilon)
+    error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref, np.copy(Hini), NbIter, delta=delta, verbose=verbose, gamma=1.9, epsilon=epsilon)
     error2, H2, toc2 = nls_f.NeNMF_optimMajo(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta, gamma=1)
     error3, H3, toc3 = nls_f.Grad_descent(M , Wref, Hini, NbIter,  epsilon=epsilon, verbose=verbose, delta=delta, gamma=1.9)
     error4, H4, toc4 = nls_f.NeNMF(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
@@ -90,21 +97,21 @@ def one_run(NbIter = 100,
     toc6[0]=0
     
     error7, H7, toc7 = nls_kl.Lee_Seung_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, epsilon=epsilon)
-    error8, H8, toc8 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=True)
-    error9, H9, toc9 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=False)
+    error8, H8, toc8 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, gamma=1.9, epsilon=epsilon)
 
 
     return {
-        "errors": [error0,error2,error3,error4, error5, error6, error7, error8, error9],
-        "timings": [toc0,toc2,toc3,toc4, toc5, toc6, toc7, toc8, toc9],
-        "loss": 6*["l2"]+3*["kl"],
+        "errors": [error0,error2,error3,error4, error5, error6, error7, error8],
+        "timings": [toc0,toc2,toc3,toc4, toc5, toc6, toc7, toc8],
+        "loss": 6*["l2"]+2*["kl"],
     }
 
 
 df = pd.read_pickle("Results/"+name)
 
 # Interpolating
-df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True)
+ovars_iterp = ["algorithm"]
+df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True, groups=ovars_iterp)
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
@@ -123,9 +130,9 @@ df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_int
 #fig_winner.show()
 
 # Median plots
-df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type="timings")
-df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it, type="iterations")
-df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type="timings")
+df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type_x="timings")
+df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it, type_x="iterations")
+df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type_x="timings")
 
 # Convergence plots with all runs
 pxfig = px.line(df_l2_conv_median_time, 
