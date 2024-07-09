@@ -183,7 +183,7 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print
     for k in range(NbIter):
         
         A1H = A1.dot(H)
-        deltaH =  np.maximum(aux_H*(B1 - A1H), epsilon-H)
+        deltaH = np.maximum(aux_H*(B1 - A1H), epsilon-H)
         H = H + deltaH
         if k==0:
             inner_change_0 = np.linalg.norm(deltaH)**2

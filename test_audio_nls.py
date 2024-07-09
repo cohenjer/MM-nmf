@@ -12,6 +12,7 @@ import shootout.methods.post_processors as pp
 import time
 import sys
 import plotly.io as pio
+from utils import opt_scaling, nearest_neighbour_H
 pio.kaleido.scope.mathjax = None
 pio.templates.default= "plotly_white"
 
@@ -30,7 +31,8 @@ pio.templates.default= "plotly_white"
 
 # Importing data and computing STFT using the Attack-Decay paper settings
 # Read the song (you can use your own!)
-the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-bach_847_AkPnBcht.wav')
+#the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-bach_847_AkPnBcht.wav')
+the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-scn16_2_AkPnBcht.wav')
 # Using the settings of the Attack-Decay transcription paper
 the_signal = the_signal[:,0] # left channel only
 frequencies, time_atoms, Y = signal.stft(the_signal, fs=sampling_rate_local, nperseg=4096, nfft=8192, noverlap=4096 - 882)
@@ -45,26 +47,43 @@ cutt_in = int(1/time_step) # song beginning after 1 second
 cutt_out = int(30/time_step)# 30seconds with 20ms steps #time_atoms.shape[0]
 Y = Y[:cutf, cutt_in:cutt_out]
 # normalization
-#Y = Y/np.linalg.norm(Y, 'fro') # TODO remove
+Y = Y/np.max(Y) # TODO test
+# Padding for numerical stability
+#Y[Y<1e-3] = 0 # TODO test
+# Removing zero columns
+#colY = np.sum(Y)
 
 # -------------------- For NNLS -----------------------
 # Importing a good dictionnary for the NNLS part
-Wgt_attack = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
-Wgt_decay = np.load('./data_and_scripts/decay_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
-Wgt = np.concatenate((Wgt_attack,Wgt_decay),axis=1)
+#Wgt_attack = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+#Wgt_decay = np.load('./data_and_scripts/decay_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+#Wgt = np.concatenate((Wgt_attack,Wgt_decay),axis=1)
+
+# TODO use only attack dict ??
+Wgt = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+#Wgt = np.load('./data_and_scripts/decay_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+
 # Also cutting the dictionary
 Wgt = Wgt[:cutf,:]
 # -----------------------------------------------------
+# TODO TEST reducing rank by handpicking some notes
+#Wgt = Wgt[:,39:51] # 1 octaves in the middle 261-493Hz range
+#Wgt = Wgt[:,[0,2,3,4,5,6,7,8,9,10]] #handpicking nonzero components
 
+# TODO change in paper
+Wgt = Wgt[:,27:51] # 2 octaves in the middle, except last note which is useless
+#Wgt = Wgt[:,[0,2,5,9,10,12,14,15,16,17,19,21,22]]
+# Normalization by l1
+Wgt = Wgt/np.max(Wgt,axis=0)
 
 #------------------------------------------------------------------
 # Computing the NMF to try and recover activations and templates
 m, n = Y.shape
-rank = 88*2 # one template per note only for speed
-#Wgt = Wgt[:,:rank]
+rank = Wgt.shape[1]
 
 # Shootout config
-name = "audio_nls_test_10-06-2023"
+name = "audio_nls_test_01-07-2024"
+#name = "audio_nls_test_14-03-2024"
 
 if len(sys.argv)==1 or sys.argv[1]==0:
     seeds = [] #no run
@@ -74,16 +93,16 @@ else:
     skip=False
 
 variables = {
-    "NbIter" : 100, 
+    "NbIter" : 500, # TODO change in paper from 100 to 500? so sloooow
+    "NbIter_SN" : 50, # TODO change in paper from 100 to 300?
     "delta" : 0,
     "epsilon" : 1e-8,
-    "seed" : seeds,
-    "sigma" : 1,
+    "seed" : seeds
 }
 
 df = pd.DataFrame()
 
-algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL"]
+algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "trueMU_KL", "Scalar Newton CCD"]
 
 @run_and_track(
     algorithm_names=algs, 
@@ -93,16 +112,19 @@ algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", 
 )
 def one_run(rank = rank,
             NbIter = 100,
-            sigma = 1,
+            NbIter_SN = 30,
             delta=0, # NLS test, no early stopping
             epsilon = 1e-8,
             seed=1, # will actually be seed idx from run and track
-            verbose=False,
+            verbose=True,
             ):
     # Seeding
     rng = np.random.RandomState(seed+20)
     # Perturbing the initialization for randomization
-    Hini = sigma*rng.rand(rank, n)
+    Hini = rng.rand(rank, n) # TODO better init ?
+    #Hini = nearest_neighbour_H(Y, Wgt)
+    lamb = opt_scaling(Y, Wgt@Hini)
+    Hini = lamb*Hini
 
     # Frobenius algorithms
     # init fastMU with few steps of MU
@@ -129,16 +151,33 @@ def one_run(rank = rank,
 #    toc7 = toc7 + [toc7[-1] +  i for i in toc71[nit_mu:]]
     error8, H8, toc8 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, epsilon=epsilon)
     error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, gamma=1.9, epsilon=epsilon)
+    error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, gamma=1.9, epsilon=epsilon, method="trueMU")
+    error11, H11, toc11 = nls_kl.ScalarNewton(Y, Wgt, Hini, NbIter=NbIter_SN, verbose=verbose, delta=delta, epsilon=epsilon, method="CCD", print_it=10)
 
+
+    # Tracking issues
+    #import matplotlib.pyplot as plt
+    #plt.subplot(221)
+    #plt.imshow(H8[:,:200])
+    #plt.subplot(222)
+    #plt.plot(np.sum(H8,axis=1))
+    #plt.subplot(223)
+    #plt.imshow(H9[:,:200])
+    #plt.subplot(224)
+    #plt.plot(np.sum(H9,axis=1))
+    #print(np.sum(H9,axis=1))
+    #plt.show()
 
     return {
-        "errors": [error0, error2, error3, error4, error5, error6, error8, error9],
-        "timings": [toc0,toc2,toc3,toc4,toc5,toc6,toc8, toc9],
-        "loss": 6*["l2"]+2*["kl"],
+        "errors": [error0, error2, error3, error4, error5, error6, error8, error9, error10, error11],
+        "timings": [toc0,toc2,toc3,toc4,toc5,toc6,toc8, toc9, toc10, toc11],
+        "loss": 6*["l2"]+4*["kl"],
             }
     
-
 df = pd.read_pickle("Results/"+name)
+
+# Remove extrapolation
+df = df[df["algorithm"] != "fastMU_Fro_ex"]
 
 # no need for median plots here, only 3 runs  (too costly)
 
@@ -157,9 +196,13 @@ df = pp.interpolate_time_and_error(df, npoints = 200, adaptive_grid=True, groups
 df_l2_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
                                filters={"loss":"l2"}, err_name="errors_interp", time_name="timings_interp")
 df_l2_conv = df_l2_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+df_l2_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"l2"})
 
 df_kl_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
                                filters={"loss":"kl"}, err_name="errors_interp", time_name="timings_interp")
+df_kl_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"kl"})
 df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 # ----------------------- Plot --------------------------- #
 #fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
@@ -168,10 +211,22 @@ df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_int
 # Median plots
 df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type_x="timings")
 df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type_x="timings")
+df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it)
+df_kl_conv_median_it = pp.median_convergence_plot(df_kl_conv_it)
 
 # Convergence plots with all runs
 pxfig = px.line(df_l2_conv_median_time, 
             x="timings", 
+            y= "errors", 
+            color='algorithm',
+            line_dash='algorithm',
+            log_y=True,
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
+pxfigit = px.line(df_l2_conv_median_it, 
+            x="it", 
             y= "errors", 
             color='algorithm',
             line_dash='algorithm',
@@ -192,8 +247,8 @@ pxfig.update_layout(
     font_size = 12,
     width=450*1.62/2, # in px
     height=450,
-    xaxis=dict(range=[0,0.5], title_text="Time (s)"),
-    yaxis=dict(range=np.log10([2e-7,7e-7]), title_text="Fit")
+    #xaxis=dict(range=[0,0.5], title_text="Time (s)"),
+    #yaxis=dict(range=np.log10([2e-7,7e-7]), title_text="Fit")
 )
 
 pxfig.update_xaxes(
@@ -204,10 +259,37 @@ pxfig.update_yaxes(
     matches=None,
     showticklabels=True
 )
+pxfigit.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
+pxfigit.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    #xaxis=dict(range=[0,0.5], title_text="Time (s)"),
+    #yaxis=dict(range=np.log10([2e-7,7e-7]), title_text="Fit")
+)
+
+pxfigit.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfigit.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+
 
 pxfig.write_image("Results/"+name+"_fro.pdf")
 pxfig.write_image("Results/"+name+"_fro.pdf")
+pxfigit.write_image("Results/"+name+"_fro_it.pdf")
 pxfig.show()
+pxfigit.show()
 
 
 pxfig2 = px.line(df_kl_conv_median_time, 
@@ -219,6 +301,16 @@ pxfig2 = px.line(df_kl_conv_median_time,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
 )
+pxfig2it = px.line(df_kl_conv_median_it, 
+            x="it", 
+            y= "errors", 
+            color='algorithm',
+            line_dash='algorithm',
+            log_y=True,
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
 
 # Final touch
 pxfig2.update_traces(
@@ -232,8 +324,8 @@ pxfig2.update_layout(
     font_size = 12,
     width=450*1.62/2, # in px
     height=450,
-    xaxis=dict(range=[0,4],title_text="Time (s)"),
-    yaxis=dict(title_text="Fit")
+    #xaxis=dict(range=[0,4],title_text="Time (s)"),
+    #yaxis=dict(title_text="Fit")
 )
 
 pxfig2.update_xaxes(
@@ -244,9 +336,34 @@ pxfig2.update_yaxes(
     matches=None,
     showticklabels=True
 )
+# Final touch
+pxfig2it.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
 
+pxfig2it.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    #xaxis=dict(range=[0,4],title_text="Time (s)"),
+    #yaxis=dict(title_text="Fit")
+)
+
+pxfig2it.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig2it.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
 pxfig2.write_image("Results/"+name+"_kl.pdf")
+pxfig2it.write_image("Results/"+name+"_kl_it.pdf")
 pxfig2.show()
+pxfig2it.show()
 
 
 # Winner at given threshold plots

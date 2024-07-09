@@ -113,8 +113,9 @@ def Lee_Seung_KL(V,  W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, 
     inner_change_l = np.Inf
 
     for k in range(NbIter):
-        deltaH = np.maximum(H * ((W.T.dot(V/WH))/sumW-1), epsilon-H)
-        H = H + deltaH
+        Hnew = np.maximum(H * ((W.T.dot(V/WH))/sumW), epsilon)
+        deltaH = Hnew - H
+        H = Hnew
         WH = W.dot(H)
         if k>0:
             if k==1:
@@ -225,12 +226,112 @@ def GD_KL(V, W, Hini, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, d
     if verbose:
         print("Loss at iteration {}: {}".format(k+1,crit[-1]))
     return crit, H, toc
+
+
+############################################################################
+############################ Other methods for review  
+############################################################################
+
+
+def ScalarNewton(V, W, Hini, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, method="CCD"):
+    
+    """
+    The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
+    V = WH + N where N represents to the noise --> It leads to find W,H in miminize [ V log (V/WH) - V + WH ] s.t. W, H >= 0
+    
+    Parameters
+    ----------
+    V : MxN array 
+        observation matrix that is Vorig + B where B represents to the noise.
+    W : MxR array
+        input mixing matrix with all entries are non-negative.
+    Hini : RxN array
+        matrix with all entries are non-negative.
+    NbIter : int
+        the maximum number of iterations.
+    delta: float
+        relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
+        A good value empirically: 0.01
+        default: np.Inf (no dynamic stopping)
+    method: string
+        "CCD": component-wise scalar second order, without monotonicity [Hsieh, Dhillon 2011] with $s=0$.
+        "SN": adapted method from [Hien, Gillis 2021], with monotonicity guarantees.
+    
+    Returns
+    -------
+    err : darray
+        vector that saves the error between Vorig with WH at each iteration.
+    H : RxN array
+        non-negative estimated matrix.
+
+    """
+    toc = [0]
+    tic = time.perf_counter()
+    if verbose:
+        print("\n------Scalar Newton running------")
+
+    H = Hini.copy()
+    WH = W.dot(H)
+    
+    crit = [compute_error(V, WH)]
+    
+    inner_change_0 = 1
+    inner_change_l = np.Inf
+
+    # Self concordant constant
+    if method == "SN":
+        chj = np.max((V > 0) / np.sqrt(V), axis=0)  # 1 by n
+
+    sum_W = np.sum(W, axis=0)
+    WH = W.dot(H)
+
+    for k in range(NbIter):
+      
+        Hnew = np.copy(H)
+        
+        for q in range(H.shape[0]):
+            
+            # Update of a single components, similar to HALS
+            grad = - (W[:, q]).dot(V/WH) + sum_W[q]
+            hess = ((W[:, q]**2)).dot(V/(WH**2))  # elementwise 2d order derivative
+            s = np.maximum(H[q, :] - grad/hess, epsilon)  # TODO replace with epsilon ? write in article
+            if method == "SN":
+                # safe update
+                d = s - H[q, :]
+                lamb = chj*np.sqrt(hess)*np.abs(d)  # broadcasting check
+                Hnew[q, :] = np.where((grad <= 0) + (lamb <= 0.683802), s, H[q, :] + (1/(1+lamb)) * d)
+            else:
+                Hnew[q, :] = s
+
+            WH += np.outer(W[:, q], Hnew[q, :] - H[q, :])  # updated
+               
+        deltaH = Hnew - H
+        H = Hnew
+        if k == 1:
+            inner_change_0 = np.linalg.norm(deltaH)**2
+        else:
+            inner_change_l = np.linalg.norm(deltaH)**2
+        if inner_change_l < delta*inner_change_0:
+            break
+
+        # compute the error 
+        crit.append(compute_error(V, WH))
+        toc.append(time.perf_counter()-tic)
+        if verbose:
+            if k % print_it==0:
+                print("Loss at iteration {}: {}".format(k+1,crit[-1]))
+        # Check if the error is small enough to stop the algorithm 
+
+    if verbose:
+        print("Loss at iteration {}: {}".format(k+1,crit[-1]))
+    return crit, H, toc
+
 ############################################################################
 ############################ PROPOSED METHOD  
 ############################################################################
 
     
-def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9):
+def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9, method=None):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -257,6 +358,8 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, ve
         - "data_sum": alpha_n is chosen as the sum of data rows (for H update) and data columns (for W update)
         - "factors_sum": alpha_n is chosen as the sum of factors columns
         - a float, e.g. alpha_strategy=1, to fix alpha to a specific constant.
+    method: None or String
+        Set method to "trueMU" to use the choice of Lee and Seung u=H in the local majoration, without any approximation.
     
     Returns
     -------
@@ -288,13 +391,29 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, ve
 
     for k in range(NbIter):
         # FIXED W ESTIMATE H        
-        if k==0:
-            # first iteration: LS
-            deltaH = np.maximum(H/sum_W*((W.T).dot(V/WH)- sum_W), epsilon-H)
+        #aux_H1 = H/sum_W
+        #aux_H2 = gamma*H/sum_W
+        #aux_H3 = gamma*H/(W.T@(V/WH))
+        #aux_H = gamma*1/(WW2.dot(V/(WH**2)))
+        
+        #if k==1 or k%10==0:
+            #print("slowMU", aux_H1.sum()/np.prod(H.shape), np.sum(1/aux_H1)/np.prod(H.shape), aux_H1.min(), aux_H1.max())
+            #print("two_MU", aux_H2.sum()/np.prod(H.shape), np.sum(1/aux_H2)/np.prod(H.shape), aux_H2.min(), aux_H2.max())
+            #print("trueMU", aux_H3.sum()/np.prod(H.shape), np.sum(1/aux_H3)/np.prod(H.shape), aux_H3.min(), aux_H3.max())
+            #print("fastMU", aux_H.sum()/np.prod(H.shape), np.sum(1/aux_H)/np.prod(H.shape), aux_H.min(), aux_H.max())
+            
+        if method == "trueMU":
+            temp_grad = W.T@(V/WH)
+            aux_H = gamma*H/temp_grad
+            # Preconditionned proximal gradient step
+            Hnew = np.maximum(H + aux_H*(temp_grad - sum_W), epsilon)
         else:
-            aux_H = gamma*1/(WW2.dot(V/WH**2))
-            deltaH = np.maximum(aux_H*((W.T).dot(V/WH)- sum_W), epsilon-H)
-        H = H + deltaH
+            aux_H = gamma*1/(WW2.dot(V/(WH**2)))
+            # Preconditionned proximal gradient step
+            Hnew = np.maximum(H + aux_H*((W.T).dot(V/WH) - sum_W), epsilon)
+        
+        deltaH = Hnew - H
+        H = Hnew
         WH = W.dot(H)
         if k==1:
             inner_change_0 = np.linalg.norm(deltaH)**2

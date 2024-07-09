@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import sys
-from utils import sparsify
+from utils import sparsify, nearest_neighbour_H, absls, opt_scaling
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
 
@@ -28,7 +28,7 @@ else:
 
 variables = {
     "add_track" : {"distribution" : "uniform"},
-    "mnr" : [[2000,1000,40]],
+    "mnr" : [[200,500,40]], # TODO change sizes
     "NbIter" : [300], # for Lee and Seung also
     "SNR" : [100],#, 30],
     "delta" : 0,
@@ -36,17 +36,17 @@ variables = {
     "seed" : seeds, 
     "distribution" : "uniform",
     "show_it" : 100,
-    "epsilon" : 1e-8
+    "epsilon" : 1e-8,
 }
 
-algs = ["MU_KL", "fastMU_KL"]
-name = "KL_nls_sparse_run_10-05-2023"
+algs = ["MU_KL", "fastMU_KL", "trueMU_KL", "Scalar Newton CCD"]
+name = "KL_nls_sparse_run_04-06-2024"
 
 @run_and_track(
         algorithm_names = algs, name_store=name,
         path_store="Results/", skip=skip, verbose=True, **variables
         )
-def one_run(verbose=False, **cfg):
+def one_run(verbose=True, **cfg):
     #mnr=[100,100,5],SNR=50, NbIter=3000, verbose=False, show_it=100, delta=0, seed=1, epsilon=1e-8, setup=1, skip=False):
     m, n, r = cfg["mnr"]
     # Fixed the signal 
@@ -73,27 +73,43 @@ def one_run(verbose=False, **cfg):
 
     # Sparsifying
     #print(f"Estce que {np.min(Vorig)} et {r*epsilon**2} sont égaux")
-
-    # Initialization for H0 as a random matrix
-    Hini = rng.rand(r, n)
     
     # adding Poisson noise to the observed data
     #N = np.random.poisson(1,size=Vorig.shape) # integers
     N = rng.rand(m,n) # uniform
     sigma = 10**(-cfg["SNR"]/20)*np.linalg.norm(Vorig)/np.linalg.norm(N)
     V = Vorig + sigma*N
+    
+    
+    # Initialization for H0 as a random matrix
+    Hini = rng.rand(r, n)  # TODO better init ?
+    # scaling
+    lamb = opt_scaling(V, Worig@Hini)
+    Hini = lamb*Hini
+    #print(lamb)
+    
+    # scaled nn
+    #Hini = nearest_neighbour_H(V, Worig, epsilon = cfg["epsilon"])
+    
+    #Hini = absls(V, Worig, epsilon = cfg["epsilon"])
+    
+    
+    #from IPython import embed; embed()
 
     #_, Hxx, _ = nls_kl.Lee_Seung_KL(V, Worig, Hini, NbIter=50, verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], epsilon=cfg[ "epsilon" ])
     error0, H0, toc0 = nls_kl.Lee_Seung_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], epsilon=cfg["epsilon"])
-    error1, H1, toc1 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it" ], delta=cfg[ "delta" ], gamma=1.9, epsilon=cfg["epsilon"])
+    error1, H1, toc1 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], gamma=1.9, epsilon=cfg["epsilon"])
+    error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], gamma=1.9, method="trueMU", epsilon=cfg["epsilon"])
+    error3, H3, toc3 = nls_kl.ScalarNewton(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], method="CCD")
+    
     #error2, H2, toc2 = nls_kl.GD_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], epsilon=cfg["epsilon"])
     #error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=False)
     #error3, H3, toc3 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=True, gamma=1, epsilon=epsilon, true_hessian=False)
     #error4, H4, toc4 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=False)
 
     return {
-        "errors" : [error0, error1],#,error3,error4], 
-        "timings" : [toc0, toc1],#,toc3,toc4]
+        "errors": [error0, error1, error2, error3],  # ,error4], 
+        "timings": [toc0, toc1, toc2, toc3],  # ,toc4]
             }
 
 
@@ -114,9 +130,11 @@ df = pp.interpolate_time_and_error(df, npoints = 300, adaptive_grid=True, groups
 ovars = ["mnr", "SNR", "setup"]
 df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars, err_name="errors_interp", time_name="timings_interp")#, filters=dict({"mnr": "[2000, 1000, 40]"}))
 df_conv = df_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+df_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars)#, filters=dict({"mnr": "[2000, 1000, 40]"}))
 
 # Median plot
 df_conv_median_time = pp.median_convergence_plot(df_conv, type_x="timings")
+df_conv_median_it = pp.median_convergence_plot(df_conv_it)
 
 # Convergence plots with all runs
 pxfig = px.line(df_conv_median_time, 
@@ -163,6 +181,53 @@ pxfig.update_yaxes(
     showticklabels=True
 )
 
+# Convergence plots with all runs
+pxfigit = px.line(df_conv_median_it, 
+            x="it", 
+            y= "errors", 
+            color='algorithm',
+            line_dash='algorithm',
+            #facet_row="SNR",
+            facet_col="setup",
+            facet_col_wrap=2,
+            log_y=True,
+            facet_col_spacing=0.1,
+            facet_row_spacing=0.1,
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
+# Final touch
+pxfigit.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
+pxfigit.update_layout(
+    font_size = 12,
+    #title_text = f"NLS Results for Setup {setup}",
+    width=600*1.62, # in px
+    height=600,
+    #xaxis1=dict(range=[0,5], title_text="Time (s)"),
+    #xaxis3=dict(range=[0,5]),
+    #xaxis2=dict(range=[0,15],title_text="Time (s)"),
+    #xaxis4=dict(range=[0,15]),
+    yaxis1=dict(title_text="Fit"),
+    yaxis3=dict(title_text="Fit")
+)
+
+pxfigit.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfigit.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
 pxfig.write_image("Results/"+name+".pdf")
 pxfig.write_image("Results/"+name+".pdf")
+pxfigit.write_image("Results/"+name+"_it.pdf")
 pxfig.show()
+pxfigit.show()

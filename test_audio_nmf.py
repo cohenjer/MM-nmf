@@ -13,6 +13,7 @@ import plotly.express as px
 from shootout.methods.runners import run_and_track
 import shootout.methods.post_processors as pp
 import sys
+from utils import opt_scaling
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
 pio.templates.default= "plotly_white"
@@ -50,19 +51,26 @@ Y = Y[:cutf, cutt_in:cutt_out]
 
 # -------------------- For NNLS -----------------------
 # Importing a good dictionnary for the NNLS part
-Wgt_attack = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
-Wgt_decay = np.load('./data_and_scripts/decay_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
-Wgt = np.concatenate((Wgt_attack,Wgt_decay),axis=1)
+Wgt = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+#Wgt_attack = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+#Wgt_decay = np.load('./data_and_scripts/decay_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+#Wgt = np.concatenate((Wgt_attack,Wgt_decay),axis=1)
 # Also cutting the dictionary
 Wgt = Wgt[:cutf,:]
 # -----------------------------------------------------
 
+# TODO change in paper
+Wgt = Wgt[:,27:51] # 2 octaves in the middle, except last note which is useless
+#Wgt = Wgt[:,[0,2,5,9,10,12,14,15,16,17,19,21,22]]
+# Normalization by l1
+Wgt = Wgt/np.max(Wgt,axis=0)
 
 #------------------------------------------------------------------
 # Computing the NMF to try and recover activations and templates
 m, n = Y.shape
-rank = 88*2 # one template per note only for speed
+#rank = 88*2 # one template per note only for speed
 #Wgt = Wgt[:,:rank]
+rank = Wgt.shape[1]
 
 # Test: changing the data
 #Htrue = sparsify(np.random.rand(rank,n),0.5)
@@ -80,17 +88,19 @@ else:
     skip=False
 
 variables = {
-    "NbIter" : 100, 
-    "NbIter_inner" : 100,
-    "delta" : 0.1,
-    "epsilon" : 1e-8,
-    "seed" : seeds,
-    "sigma" : 0.1,
-    "tol" : 0
+    "NbIter": 300,  # TODO changer paper
+    "NbIter_SN": 50,
+    "NbIter_inner": 10,  # TODO change paper
+    "NbIter_inner_SN": 5,  # TODO change paper
+    "delta": 0,  # TODO change paper
+    "epsilon": 1e-8,
+    "seed": seeds,
+    "sigma": 0.1,
+    "tol": 0
 }
 
-name = "audio_test_10-06-2023"
-algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL"]
+name = "audio_test_01-06-2024"
+algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "trueMU_KL", "Scalar Newton CCD"]
 # TODO: better error message when algs dont match
 
 @run_and_track(
@@ -105,7 +115,9 @@ def one_run(rank = rank,
             seed = 1,
             sigma = 0.1,
             NbIter = 100,
+            NbIter_SN = 50,
             NbIter_inner = 100,
+            NbIter_inner_SN = 50,
             delta=0.1,
             verbose=True,
             epsilon = 1e-8):
@@ -113,6 +125,8 @@ def one_run(rank = rank,
     rng = np.random.RandomState(seed+20)
     Wini = Wgt + sigma*rng.rand(m,rank)
     Hini = rng.rand(rank, n)
+    lamb = opt_scaling(Y, Wini@Hini)
+    Hini = lamb*Hini
 
     # Frobenius algorithms
     error0, W0, H0, toc0, cnt0 = nmf_f.NMF_proposed_Frobenius(Y, Wini, Hini, NbIter, NbIter_inner, tol=tol, delta=delta, verbose=verbose, gamma=1.9)
@@ -126,16 +140,21 @@ def one_run(rank = rank,
     # KL algorithms
     error7, W7, H7, toc7, cnt7 = nmf_kl.Lee_Seung_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, epsilon=epsilon)
     error8, W8, H8, toc8, cnt8 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, gamma=1.9, epsilon=epsilon)
+    error9, W9, H9, toc9, cnt9 = nmf_kl.Proposed_KL(Y, Wini, Hini, NbIter=NbIter, nb_inner=NbIter_inner, tol=tol, verbose=verbose, gamma=1.9, epsilon=epsilon, method="trueMU")
+    error10, W10, H10, toc10, cnt10 = nmf_kl.ScalarNewton(Y, Wini, Hini, NbIter=NbIter_SN, nb_inner=NbIter_inner_SN, tol=tol, verbose=verbose,  epsilon=epsilon, method="CCD", print_it=1)
 
 
     return {
-        "errors": [error0, error2, error3, error4, error5, error6, error7, error8],
-        "timings": [toc0,toc2,toc3,toc4,toc5,toc6, toc7, toc8],
-        "loss": 6*["l2"]+2*["kl"],
+        "errors": [error0, error2, error3, error4, error5, error6, error7, error8, error9, error10],
+        "timings": [toc0,toc2,toc3,toc4,toc5,toc6, toc7, toc8, toc9, toc10],
+        "loss": 6*["l2"]+4*["kl"],
             }
     
 
 df = pd.read_pickle("Results/"+name)
+
+# Remove extrapolation
+df = df[df["algorithm"] != "fastMU_Fro_ex"]
 
 ovars_iterp = ["algorithm"]
 df = pp.interpolate_time_and_error(df, npoints = 200, adaptive_grid=True, groups=ovars_iterp)
@@ -145,13 +164,19 @@ df = pp.interpolate_time_and_error(df, npoints = 200, adaptive_grid=True, groups
 df_l2_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
                                filters={"loss":"l2"}, err_name="errors_interp", time_name="timings_interp")
 df_l2_conv = df_l2_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+df_l2_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"l2"})
 
 df_kl_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
                                filters={"loss":"kl"}, err_name="errors_interp", time_name="timings_interp")
 df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+df_kl_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"kl"})
 
 df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type_x="timings")
 df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type_x="timings")
+df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it)
+df_kl_conv_median_it = pp.median_convergence_plot(df_kl_conv_it)
 # ----------------------- Plot --------------------------- #
 
 # Convergence plots with all runs
@@ -160,6 +185,15 @@ pxfig = px.line(df_l2_conv_median_time, #line_group="groups",
             line_dash='algorithm',
             log_y=True)
 
+pxfigit = px.line(df_l2_conv_median_it, 
+            x="it", 
+            y= "errors", 
+            color='algorithm',
+            line_dash='algorithm',
+            log_y=True,
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
 # Final touch
 pxfig.update_traces(
     selector=dict(),
@@ -184,16 +218,54 @@ pxfig.update_yaxes(
     matches=None,
     showticklabels=True
 )
+pxfigit.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
+pxfigit.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    #xaxis=dict(range=[0,0.5], title_text="Time (s)"),
+    #yaxis=dict(range=np.log10([2e-7,7e-7]), title_text="Fit")
+)
+
+pxfigit.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfigit.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
+
+
 
 pxfig.write_image("Results/"+name+"_fro.pdf")
 pxfig.write_image("Results/"+name+"_fro.pdf")
+pxfigit.write_image("Results/"+name+"_fro_it.pdf")
 pxfig.show()
+pxfigit.show()
 
 
 pxfig2 = px.line(df_kl_conv_median_time, #line_group="groups", 
                  x="timings", y= "errors", color='algorithm',
                  line_dash='algorithm',
                  log_y=True)
+
+pxfig2it = px.line(df_kl_conv_median_it, 
+            x="it", 
+            y= "errors", 
+            color='algorithm',
+            line_dash='algorithm',
+            log_y=True,
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
 
 # Final touch
 pxfig2.update_traces(
@@ -220,5 +292,31 @@ pxfig2.update_yaxes(
     showticklabels=True
 )
 
+pxfig2it.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
+pxfig2it.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    #xaxis=dict(range=[0,4],title_text="Time (s)"),
+    #yaxis=dict(title_text="Fit")
+)
+
+pxfig2it.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig2it.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
+
 pxfig2.write_image("Results/"+name+"_kl.pdf")
+pxfig2it.write_image("Results/"+name+"_kl_it.pdf")
 pxfig2.show()
+pxfig2it.show()

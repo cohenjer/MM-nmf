@@ -96,6 +96,9 @@ pio.templates.default= "plotly_white"
 
 df = pd.read_pickle("Results/"+name)
 
+# Remove extrapolation
+df = df[df["algorithm"] != "fastMU_Fro_ex"]
+
 # Interpolating time (choose fewer points for better vis), adaptive grid since time varies across plots
 ovars_inter = ["mnr", "SNR", "algorithm"]
 df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True, groups=ovars_inter)#, strategy="min_curve")

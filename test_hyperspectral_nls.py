@@ -9,6 +9,7 @@ import time
 import sys
 from shootout.methods import runners as rn
 from shootout.methods import post_processors as pp
+from utils import opt_scaling
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None # bug
 pio.templates.default= "plotly_white"
@@ -62,8 +63,8 @@ variables = {
     "seed" : seeds,
 }
 
-algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL"]
-name = "hsi_nls_test_10_06_2023"
+algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "trueMU_KL"]
+name = "hsi_nls_test_06_03_2024"
 
 @rn.run_and_track(
     algorithm_names=algs, 
@@ -80,6 +81,8 @@ def one_run(NbIter = 100,
     rng = np.random.RandomState(seed+20)
     # Init
     Hini = rng.rand(Wref.shape[1], M.shape[1])
+    lamb = opt_scaling(M, Wref@Hini)
+    Hini = lamb*Hini
 
     error0, H0, toc0 = nls_f.NMF_proposed_Frobenius(M, Wref, np.copy(Hini), NbIter, delta=delta, verbose=verbose, gamma=1.9, epsilon=epsilon)
     error2, H2, toc2 = nls_f.NeNMF_optimMajo(M, Wref, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta, gamma=1)
@@ -98,16 +101,21 @@ def one_run(NbIter = 100,
     
     error7, H7, toc7 = nls_kl.Lee_Seung_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, epsilon=epsilon)
     error8, H8, toc8 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, gamma=1.9, epsilon=epsilon)
+    error9, H9, toc9 = nls_kl.Proposed_KL(M, Wref, Hini, NbIter=NbIter, verbose=verbose, delta=delta, gamma=1.9, epsilon=epsilon, method="trueMU")
 
+    print(H9.mean())
 
     return {
-        "errors": [error0,error2,error3,error4, error5, error6, error7, error8],
-        "timings": [toc0,toc2,toc3,toc4, toc5, toc6, toc7, toc8],
-        "loss": 6*["l2"]+2*["kl"],
+        "errors": [error0,error2,error3,error4, error5, error6, error7, error8, error9],
+        "timings": [toc0,toc2,toc3,toc4, toc5, toc6, toc7, toc8, toc9],
+        "loss": 6*["l2"]+3*["kl"],
     }
 
 
 df = pd.read_pickle("Results/"+name)
+
+# Remove extrapolation
+df = df[df["algorithm"] != "fastMU_Fro_ex"]
 
 # Interpolating
 ovars_iterp = ["algorithm"]
@@ -125,6 +133,8 @@ df_l2_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_
 df_kl_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
                                filters={"loss":"kl"}, err_name="errors_interp", time_name="timings_interp")
 df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+df_kl_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               filters={"loss":"kl"})
 # ----------------------- Plot --------------------------- #
 #fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
 #fig_winner.show()
@@ -133,6 +143,7 @@ df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_int
 df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type_x="timings")
 df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it, type_x="iterations")
 df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type_x="timings")
+df_kl_conv_median_it = pp.median_convergence_plot(df_kl_conv_it, type_x="iterations")
 
 # Convergence plots with all runs
 pxfig = px.line(df_l2_conv_median_time, 
@@ -144,6 +155,17 @@ pxfig = px.line(df_l2_conv_median_time,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
 )
+
+pxfigit = px.line(df_l2_conv_median_it, 
+            x="it", 
+            y= "errors", 
+            color='algorithm',
+            line_dash='algorithm',
+            log_y=True,
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
 
 # Final touch
 pxfig.update_traces(
@@ -169,9 +191,35 @@ pxfig.update_yaxes(
     matches=None,
     showticklabels=True
 )
+
+pxfigit.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
+pxfigit.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    #xaxis=dict(range=[0,1.0], title_text="Time (s)"),
+    #yaxis=dict(title_text="Fit")
+)
+
+pxfigit.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfigit.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
 # buuuuuugggedddd
 pxfig.write_image("Results/"+name+"_fro.pdf")
+pxfigit.write_image("Results/"+name+"_fro_it.pdf")
 pxfig.show()
+pxfigit.show()
 
 pxfig2 = px.line(df_kl_conv_median_time, 
             x="timings", 
@@ -182,6 +230,16 @@ pxfig2 = px.line(df_kl_conv_median_time,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
 )
+pxfig2it = px.line(df_kl_conv_median_it, 
+            x="it", 
+            y= "errors", 
+            color='algorithm',
+            line_dash='algorithm',
+            log_y=True,
+            #error_y="q_errors_p", 
+            #error_y_minus="q_errors_m", 
+)
+
 
 # Final touch
 pxfig2.update_traces(
@@ -195,8 +253,8 @@ pxfig2.update_layout(
     font_size = 12,
     width=450*1.62/2, # in px
     height=450,
-    xaxis=dict(title_text="Time (s)"),
-    yaxis=dict(title_text="Fit")
+    #xaxis=dict(title_text="Time (s)"),
+    #yaxis=dict(title_text="Fit")
 )
 
 pxfig2.update_xaxes(
@@ -207,9 +265,35 @@ pxfig2.update_yaxes(
     matches=None,
     showticklabels=True
 )
+# Final touch
+pxfig2it.update_traces(
+    selector=dict(),
+    line_width=2.5,
+    #error_y_thickness = 0.3,
+)
+
+pxfig2it.update_layout(
+    title_text = "NLS",
+    font_size = 12,
+    width=450*1.62/2, # in px
+    height=450,
+    #xaxis=dict(title_text="Time (s)"),
+    #yaxis=dict(title_text="Fit")
+)
+
+pxfig2it.update_xaxes(
+    matches = None,
+    showticklabels = True
+)
+pxfig2it.update_yaxes(
+    matches=None,
+    showticklabels=True
+)
 
 pxfig2.write_image("Results/"+name+"_kl.pdf")
+pxfig2it.write_image("Results/"+name+"_kl_it.pdf")
 pxfig2.show()
+pxfig2it.show()
 
 
 ## Interpolating

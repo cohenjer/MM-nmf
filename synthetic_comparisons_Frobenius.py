@@ -106,6 +106,8 @@ pio.templates.default= "plotly_white"
 
 df = pd.read_pickle("Results/"+name)
 
+# Remove extrapolation
+df = df[df["algorithm"] != "fastMU_Fro_ex"]
 # TODO: shootout plots
 ## Using shootout for plotting and postprocessing
 #thresh = np.logspace(-3,-8,50) 
