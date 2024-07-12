@@ -47,5 +47,8 @@ def absls(Y, W, epsilon=0):
 
 def opt_scaling(Y, WH):
     # columnwise for H
-    
     return np.array([Y[:, i].sum()/WH[:, i].sum() for i in range(WH.shape[1])])
+
+def opt_scaling_fro(Y, WH):
+    # columnwise for H
+    return np.array([WH[:, i].dot(Y[:, i])/np.linalg.norm(WH[:, i])**2 for i in range(WH.shape[1])])

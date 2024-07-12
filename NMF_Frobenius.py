@@ -148,7 +148,7 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, t
 #------------------------------------
 #  NMF algorithm proposed version
 
-def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9):
+def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9, method="fastMU"):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -177,6 +177,10 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         default: np.Inf (no dynamic stopping)
     gamma: float
         stepsize, default 1.9
+    method: string
+        select the choice of majorant
+        "fastMU" minimizes the median of inverse step sizes
+        "trueMU" uses the approximate Hessian proposed by Lee and Seung, with aggressive stepsize.
 
     Returns
     -------
@@ -208,12 +212,15 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         # FIXED W ESTIMATE H
         A1 = W.T.dot(W)
         B1 = W.T@V
-        aux_H = gamma/repmat(np.sum(A1,axis=1)[:,None],1,V.shape[1])
+        if method == "fastMU":
+            aux_H = gamma/repmat(np.sum(A1, axis=1)[:, None], 1, V.shape[1])
         inner_change_0 = 1
         inner_change_l = np.Inf
         for ih in range(NbIter_inner):
             A1H = A1.dot(H)  
-            deltaH =  np.maximum(aux_H*(B1 - A1H), epsilon-H)
+            if method == "trueMU":
+                aux_H = gamma*H/A1H
+            deltaH = np.maximum(aux_H*(B1 - A1H), epsilon-H)
             H = H + deltaH
             if ih==0:
                 inner_change_0 = np.linalg.norm(deltaH)**2
@@ -226,11 +233,14 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         # FIXED H ESTIMATE W
         A2 = H.dot(H.T)
         B2 = V@H.T
-        aux_W = gamma/repmat(np.sum(A2,axis=0)[None,:],V.shape[0],1)
+        if method == "fastMU":
+            aux_W = gamma/repmat(np.sum(A2, axis=0)[None, :], V.shape[0], 1)
         inner_change_0 = 1
         inner_change_l = np.Inf
         for iw in range(NbIter_inner):
             WA2 = W.dot(A2)
+            if method == "trueMU":
+                aux_H = gamma*W/WA2
             deltaW = np.maximum(aux_W*(B2 - WA2), epsilon-W)
             W = W + deltaW
             if iw==0:
@@ -241,7 +251,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
                 break
         cnt.append(iw+1)
                
-        err = compute_error(Vnorm_sq,W,A2,B2,error_norm)
+        err = compute_error(Vnorm_sq, W, A2, B2, error_norm)
         error.append(err)
         toc.append(time.perf_counter() - tic)
         if verbose:

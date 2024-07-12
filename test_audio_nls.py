@@ -124,7 +124,7 @@ def one_run(rank = rank,
     Hini = rng.rand(rank, n) # TODO better init ?
     #Hini = nearest_neighbour_H(Y, Wgt)
     lamb = opt_scaling(Y, Wgt@Hini)
-    Hini = lamb*Hini
+    Hini = lamb*Hini  # TODO: different init for KL and Fro
 
     # Frobenius algorithms
     # init fastMU with few steps of MU

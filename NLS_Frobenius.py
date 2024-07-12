@@ -119,7 +119,7 @@ def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, p
 #------------------------------------
 #  NMF algorithm proposed version
 
-def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9):
+def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9, method="fastMU"):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -144,6 +144,10 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print
         relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
         A good value empirically: 0.4
         default: np.Inf (no dynamic stopping)
+    method: string
+        select the choice of majorant
+        "fastMU" minimizes the median of inverse step sizes
+        "trueMU" uses the approximate Hessian proposed by Lee and Seung, with aggressive stepsize.
 
     Returns
     -------
@@ -159,8 +163,6 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print
     """
     
     H = H0.copy()
-    #if use_LeeS:
-        #gamma = 1
     toc = [0] 
     tic = time.perf_counter()
 
@@ -170,33 +172,37 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print
     # FIXED W ESTIMATE H
     A1 = W.T.dot(W)
     B1 = W.T@V
-    #sqrtB1 =np.sqrt(B1/np.sum(W,axis=0)[:,None])
-    #aux_H = gamma*sqrtB1/A1.dot(sqrtB1)
-    aux_H = gamma/repmat(np.sum(A1,axis=1)[:,None],1,V.shape[1])
+    if method == "fastMU":
+        aux_H = gamma/repmat(np.sum(A1, axis=1)[:, None], 1, V.shape[1])
 
     error_norm = np.prod(V.shape)
     Vnorm_sq = np.linalg.norm(V)**2
-    error = [compute_error(Vnorm_sq,A1,H,B1,error_norm)]
+    error = [compute_error(Vnorm_sq, A1, H, B1, error_norm)]
     
     inner_change_0 = 1
     inner_change_l = np.Inf
     for k in range(NbIter):
         
         A1H = A1.dot(H)
-        deltaH = np.maximum(aux_H*(B1 - A1H), epsilon-H)
-        H = H + deltaH
-        if k==0:
+        
+        if method == "trueMU":
+            aux_H = gamma*H/A1H
+        
+        Hnew = np.maximum(H + aux_H*(B1 - A1H), epsilon)
+        deltaH = Hnew - H
+        H = Hnew
+        if k == 0:
             inner_change_0 = np.linalg.norm(deltaH)**2
         else:
             inner_change_l = np.linalg.norm(deltaH)**2
             if inner_change_l < delta*inner_change_0:
                 break
 
-        err = compute_error(Vnorm_sq,A1,H,B1,error_norm)
+        err = compute_error(Vnorm_sq, A1, H, B1, error_norm)
         error.append(err)
         toc.append(time.perf_counter() - tic)
         if verbose:
-            if k%print_it==0:
+            if k % print_it==0:
                 print("Error at iteration {}: {}".format(k+1,err))
             
     return error, H, toc
