@@ -19,7 +19,7 @@ import time
 # Computing error efficiently
 def compute_error(Vnorm_sq,W,HHt,VHt,error_norm):
     """
-    This function computes \|V - WH \|_F /n/m with n,m the sizes of V. It does so without explicitely computing the norm but rather reusing previously computed cross products HHt and VHt. Vnorm_sq is the squared Frobenius norm of V.
+    This function computes ||V - WH ||_F /n/m with n,m the sizes of V. It does so without explicitely computing the norm but rather reusing previously computed cross products HHt and VHt. Vnorm_sq is the squared Frobenius norm of V.
     """
     return np.sqrt(np.abs(Vnorm_sq - 2*np.sum(VHt*W) +  np.sum(HHt*(W.T@W))))/error_norm
 
@@ -27,7 +27,7 @@ def compute_error(Vnorm_sq,W,HHt,VHt,error_norm):
 #------------------------------------
 # PMF algorithm version Lee and Seung
 
-def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, delta=np.Inf):
+def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, tol=1e-7, verbose=False, print_it=100, delta=np.inf):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -63,7 +63,7 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, t
     delta: float
         relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
         A good value empirically: 0.5
-        default: np.Inf (no dynamic stopping)
+        default: np.inf (no dynamic stopping)
 
     Returns
     -------
@@ -100,7 +100,7 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, t
         WtW = W.T@W
         WtV = W.T@V
         inner_change_0 = 1
-        inner_change_l = np.Inf
+        inner_change_l = np.inf
         for j in range(NbIter_inner): 
             deltaH = np.maximum(H*(WtV/(WtW.dot(H)) - 1), epsilon-H)
             H = H + deltaH
@@ -116,7 +116,7 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, t
         VHt = V@H.T
         HHt = H@H.T
         inner_change_0 = 1
-        inner_change_l = np.Inf
+        inner_change_l = np.inf
         for j in range(NbIter_inner):
             deltaW = np.maximum(W*(VHt/(W.dot(HHt))-1), epsilon-W)
             W = W + deltaW
@@ -148,7 +148,7 @@ def NMF_Lee_Seung(V, W0, H0, NbIter, NbIter_inner, legacy=False, epsilon=1e-8, t
 #------------------------------------
 #  NMF algorithm proposed version
 
-def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9, method="fastMU"):
+def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, print_it=100, delta=np.inf, gamma=1.9, method="AmSOM"):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -174,13 +174,13 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
     delta: float
         relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
         A good value empirically: 0.4
-        default: np.Inf (no dynamic stopping)
+        default: np.inf (no dynamic stopping)
     gamma: float
         stepsize, default 1.9
     method: string
         select the choice of majorant
-        "fastMU" minimizes the median of inverse step sizes
-        "trueMU" uses the approximate Hessian proposed by Lee and Seung, with aggressive stepsize.
+        "AmSOM" minimizes the median of inverse step sizes
+        "AMUSOM" uses the approximate Hessian proposed by Lee and Seung, with aggressive stepsize.
 
     Returns
     -------
@@ -205,20 +205,20 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
     cnt = []
 
     if verbose:
-        print("\n--------- MU proposed running ----------")
+        print(f"\n--------- {method} running ----------")
 
     for k in range(NbIter):
         
         # FIXED W ESTIMATE H
         A1 = W.T.dot(W)
         B1 = W.T@V
-        if method == "fastMU":
+        if method == "AmSOM":
             aux_H = gamma/repmat(np.sum(A1, axis=1)[:, None], 1, V.shape[1])
         inner_change_0 = 1
-        inner_change_l = np.Inf
+        inner_change_l = np.inf
         for ih in range(NbIter_inner):
             A1H = A1.dot(H)  
-            if method == "trueMU":
+            if method == "AMUSOM":
                 aux_H = gamma*H/A1H
             deltaH = np.maximum(aux_H*(B1 - A1H), epsilon-H)
             H = H + deltaH
@@ -233,14 +233,14 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
         # FIXED H ESTIMATE W
         A2 = H.dot(H.T)
         B2 = V@H.T
-        if method == "fastMU":
+        if method == "AmSOM":
             aux_W = gamma/repmat(np.sum(A2, axis=0)[None, :], V.shape[0], 1)
         inner_change_0 = 1
-        inner_change_l = np.Inf
+        inner_change_l = np.inf
         for iw in range(NbIter_inner):
             WA2 = W.dot(A2)
-            if method == "trueMU":
-                aux_H = gamma*W/WA2
+            if method == "AMUSOM":
+                aux_W = gamma*W/WA2
             deltaW = np.maximum(aux_W*(B2 - WA2), epsilon-W)
             W = W + deltaW
             if iw==0:
@@ -268,7 +268,7 @@ def NMF_proposed_Frobenius(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1
 
 ################## Gradient descent method
 
-def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9):
+def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbose=False, print_it=100, delta=np.inf, gamma=1.9):
     
     """"
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -326,7 +326,7 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbo
         normAw = la.norm(Aw,2)
         WtV = W.T.dot(V)
         inner_change_0 = 1
-        inner_change_l = np.Inf
+        inner_change_l = np.inf
         for ih in range(NbIter_inner):          
             deltaH =  np.maximum((gamma/normAw)*(WtV - Aw@H),epsilon-H)
             H = H + deltaH
@@ -343,7 +343,7 @@ def Grad_descent(V , W0, H0, NbIter, NbIter_inner, tol=1e-7, epsilon=1e-8, verbo
         normAh = la.norm(Ah,2)
         VHt = V.dot(H.T)
         inner_change_0 = 1
-        inner_change_l = np.Inf
+        inner_change_l = np.inf
         for iw in range(NbIter_inner):       
             deltaW = np.maximum((1.9/normAh)*(VHt - W@Ah),epsilon-W)
             W = W + deltaW
@@ -394,7 +394,7 @@ def OGM_H(WtV, H, Aw, L, nb_inner, epsilon, delta, return_inner=False):
         #Aw = W.T.dot(W)
         #L = la.norm(Aw,2)
         inner_change_0 = 1
-        inner_change_l = np.Inf
+        inner_change_l = np.inf
         for ih in range(nb_inner):
             H_ = H.copy()
             alpha_ = alpha 
@@ -422,7 +422,7 @@ def OGM_W(VHt,W, Ah, L, nb_inner, epsilon, delta, return_inner=False):
         alpha = 1
         Y = W.copy()
         inner_change_0 = 1
-        inner_change_l = np.Inf
+        inner_change_l = np.inf
         for iw in range(nb_inner):
             W_ = W.copy()
             alpha_ = alpha 
@@ -442,7 +442,7 @@ def OGM_W(VHt,W, Ah, L, nb_inner, epsilon, delta, return_inner=False):
             
         
          
-def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf):
+def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.inf):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)
@@ -483,7 +483,7 @@ def NeNMF(V, W0, H0, tol=1e-7, nb_inner=10, itermax=10000, epsilon=1e-8, verbose
     return error, W, H, toc, cnt
 
 
-def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_best=False, delta=np.Inf, gamma=1):
+def NeNMF_optimMajo(V, W0, H0, tol=1e-7, nb_inner=10, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_best=False, delta=np.inf, gamma=1):
     W = W0.copy()
     H = H0.copy()
     error_norm = np.prod(V.shape)

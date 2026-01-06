@@ -31,8 +31,7 @@ pio.templates.default= "plotly_white"
 
 # Importing data and computing STFT using the Attack-Decay paper settings
 # Read the song (you can use your own!)
-#the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-bach_847_AkPnBcht.wav')
-the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-scn16_2_AkPnBcht.wav')
+the_signal, sampling_rate_local = sf.read('./data_and_scripts/MAPS_MUS-bach_846_AkPnBcht.wav')
 # Using the settings of the Attack-Decay transcription paper
 the_signal = the_signal[:,0] # left channel only
 frequencies, time_atoms, Y = signal.stft(the_signal, fs=sampling_rate_local, nperseg=4096, nfft=8192, noverlap=4096 - 882)
@@ -47,101 +46,77 @@ cutt_in = int(1/time_step) # song beginning after 1 second
 cutt_out = int(30/time_step)# 30seconds with 20ms steps #time_atoms.shape[0]
 Y = Y[:cutf, cutt_in:cutt_out]
 # normalization
-Y = Y/np.max(Y) # TODO test
-# Padding for numerical stability
-#Y[Y<1e-3] = 0 # TODO test
-# Removing zero columns
-#colY = np.sum(Y)
-
+Y = Y/np.max(Y)
 # -------------------- For NNLS -----------------------
 # Importing a good dictionnary for the NNLS part
 #Wgt_attack = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
 #Wgt_decay = np.load('./data_and_scripts/decay_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
 #Wgt = np.concatenate((Wgt_attack,Wgt_decay),axis=1)
 
-# TODO use only attack dict ??
-Wgt = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
-#Wgt = np.load('./data_and_scripts/decay_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
-
-# Also cutting the dictionary
-Wgt = Wgt[:cutf,:]
-# -----------------------------------------------------
-# TODO TEST reducing rank by handpicking some notes
-#Wgt = Wgt[:,39:51] # 1 octaves in the middle 261-493Hz range
-#Wgt = Wgt[:,[0,2,3,4,5,6,7,8,9,10]] #handpicking nonzero components
-
-# TODO change in paper
-Wgt = Wgt[:,27:51] # 2 octaves in the middle, except last note which is useless
-#Wgt = Wgt[:,[0,2,5,9,10,12,14,15,16,17,19,21,22]]
-# Normalization by l1
-Wgt = Wgt/np.max(Wgt,axis=0)
-
-#------------------------------------------------------------------
-# Computing the NMF to try and recover activations and templates
-m, n = Y.shape
-rank = Wgt.shape[1]
-
 # Shootout config
-name = "audio_nls_test_01-07-2024"
-#name = "audio_nls_test_14-03-2024"
+#name = "audio_nls_test_rank"
+name = "audio_nls_18-04-2025"
 
-if len(sys.argv)==1 or sys.argv[1]==0:
+if len(sys.argv)==1 or int(sys.argv[1])==0:
     seeds = [] #no run
-    skip=True
+    skip = True
 else:
     seeds = list(np.arange(int(sys.argv[1])))
-    skip=False
+    skip = False
 
 variables = {
-    "NbIter" : 500, # TODO change in paper from 100 to 500? so sloooow
-    "NbIter_SN" : 50, # TODO change in paper from 100 to 300?
+    "NbIter" : 50,
+    "NbIter_SN" : 10,
     "delta" : 0,
-    "epsilon" : 1e-8,
+    "epsilon" : 1e-16,
+    "rank": [2, 11, 23, 45],
+    "cutf": cutf,
     "seed" : seeds
 }
 
 df = pd.DataFrame()
 
-algs = ["fastMU_Fro", "fastMU_Fro_ex", "GD_Fro", "NeNMF_Fro", "MU_Fro", "HALS", "MU_KL", "fastMU_KL", "trueMU_KL", "Scalar Newton CCD"]
+#algs = ["mSOM", "PGD", "NeNMF", "MU", "HALS", "MU_kl", "mSOM_kl", "MUSOM_kl", "SN CCD"]
+algs = ["MU", "mSOM", "MUSOM", "SN CCD"]
+# TODO: trueMU for Fro, init for Fro
 
 @run_and_track(
     algorithm_names=algs, 
     path_store="Results/",
     name_store=name,
+    skip=skip,
     **variables
 )
-def one_run(rank = rank,
-            NbIter = 100,
+def one_run(NbIter = 100,
             NbIter_SN = 30,
             delta=0, # NLS test, no early stopping
             epsilon = 1e-8,
+            rank = 12,
             seed=1, # will actually be seed idx from run and track
+            cutf=1000,
             verbose=True,
             ):
+    # -----------------------------------------------------
+    # Loading the attack dictionary only
+    Wgt = np.load('./data_and_scripts/attack_dict_piano_AkPnBcht_beta_1_stftAD_True_intensity_M.npy')
+    # Also cutting the dictionary
+    Wgt = Wgt[:cutf,:]
+    # TODO Performance of mSOM decrease wrt MU as the rank increase, I can't explain why and don't observe it in other simulations or xps.
+    #Wgt = Wgt[:, 15:73]  # 4 octaves in the middle (12x4)
+    Wgt = Wgt[:, 27:(27+rank)]  # octaves in the middle starting from C2, 2 octaves from lowest piano key 
+    # Normalization by max
+    Wgt = Wgt/np.max(Wgt,axis=0)
+
+    #------------------------------------------------------------------
+    # Computing the NMF to try and recover activations and templates
+    m, n = Y.shape
+    
     # Seeding
     rng = np.random.RandomState(seed+20)
     # Perturbing the initialization for randomization
-    Hini = rng.rand(rank, n) # TODO better init ?
-    #Hini = nearest_neighbour_H(Y, Wgt)
+    Hini = rng.rand(rank, n)
     lamb = opt_scaling(Y, Wgt@Hini)
-    Hini = lamb*Hini  # TODO: different init for KL and Fro
-
-    # Frobenius algorithms
-    # init fastMU with few steps of MU
-    error0, H0, toc0, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1.9)
-    #error1, H1, toc1, = nls_f.NMF_proposed_Frobenius(Y, Wgt, Hini, NbIter, use_LeeS=True, delta=delta, verbose=verbose, epsilon=epsilon, gamma=1)
-    error2, H2, toc2 = nls_f.NeNMF_optimMajo(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
-    error3, H3, toc3 = nls_f.Grad_descent(Y , Wgt, Hini, NbIter,  epsilon=epsilon, verbose=verbose, delta=delta, gamma=1.9)
-    error4, H4, toc4 = nls_f.NeNMF(Y, Wgt, Hini, itermax=NbIter, epsilon=epsilon, verbose=verbose, delta=delta)
-    error5, H5, toc5 = nls_f.NMF_Lee_Seung(Y,  Wgt, Hini, NbIter, legacy=False, delta=delta, verbose=verbose, epsilon=epsilon)
-    # HALS is unfair because we compute things before. We add the time needed for this back after the algorithm
-    tic = time.perf_counter()
-    WtV = Wgt.T@Y
-    WtW = Wgt.T@Wgt
-    toc6_offset = time.perf_counter() - tic
-    H6, _, _, _, error6, toc6 = nn_fac.nnls.hals_nnls_acc(WtV, WtW, np.copy(Hini), maxiter=NbIter, return_error=True, delta=delta, M=Y)
-    toc6 = [toc6[i] + toc6_offset for i in range(len(toc6))] # leave the 0 in place for init
-    toc6[0]=0
+    Hini = lamb*Hini
 
     # KL algorithms
     # Trying to use few iterations of MU to start fastMU
@@ -151,7 +126,7 @@ def one_run(rank = rank,
 #    toc7 = toc7 + [toc7[-1] +  i for i in toc71[nit_mu:]]
     error8, H8, toc8 = nls_kl.Lee_Seung_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, epsilon=epsilon)
     error9, H9, toc9 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, gamma=1.9, epsilon=epsilon)
-    error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, gamma=1.9, epsilon=epsilon, method="trueMU")
+    error10, H10, toc10 = nls_kl.Proposed_KL(Y, Wgt, Hini, NbIter=NbIter, verbose=verbose, delta=delta, gamma=1.9, epsilon=epsilon, method="MUSOM")
     error11, H11, toc11 = nls_kl.ScalarNewton(Y, Wgt, Hini, NbIter=NbIter_SN, verbose=verbose, delta=delta, epsilon=epsilon, method="CCD", print_it=10)
 
 
@@ -169,15 +144,15 @@ def one_run(rank = rank,
     #plt.show()
 
     return {
-        "errors": [error0, error2, error3, error4, error5, error6, error8, error9, error10, error11],
-        "timings": [toc0,toc2,toc3,toc4,toc5,toc6,toc8, toc9, toc10, toc11],
-        "loss": 6*["l2"]+4*["kl"],
+        "errors": [error8, error9, error10, error11],
+        "timings": [toc8, toc9, toc10, toc11],
+        #"loss": 5*["l2"]+4*["kl"],
             }
     
 df = pd.read_pickle("Results/"+name)
 
 # Remove extrapolation
-df = df[df["algorithm"] != "fastMU_Fro_ex"]
+#df = df[df["algorithm"] != "fastMU_Fro_ex"]
 
 # no need for median plots here, only 3 runs  (too costly)
 
@@ -188,125 +163,57 @@ df = df[df["algorithm"] != "fastMU_Fro_ex"]
 #scores_time, scores_it, timings, iterations = find_best_at_all_thresh(df,thresh, Nb_seeds)
 
 # Interpolating
-ovars_iterp = ["algorithm"]
-df = pp.interpolate_time_and_error(df, npoints = 200, adaptive_grid=True, groups=ovars_iterp)
+ovars_iterp = ["algorithm", "rank"]
+df = pp.interpolate_time_and_error(df, npoints = 50, adaptive_grid=True, groups=ovars_iterp)
 
 # Making a convergence plot dataframe
 # We will show convergence plots for various sigma values, with only n=100
-df_l2_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               filters={"loss":"l2"}, err_name="errors_interp", time_name="timings_interp")
-df_l2_conv = df_l2_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
-df_l2_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               filters={"loss":"l2"})
+#df_l2_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               #filters={"loss":"l2"}, err_name="errors_interp", time_name="timings_interp")
+#df_l2_conv = df_l2_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
+#df_l2_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
+                               #filters={"loss":"l2"})
 
-df_kl_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               filters={"loss":"kl"}, err_name="errors_interp", time_name="timings_interp")
-df_kl_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=[],
-                               filters={"loss":"kl"})
+other_names=["rank"]
+df_kl_conv = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=other_names,
+                               err_name="errors_interp", time_name="timings_interp")
+df_kl_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=[], other_names=other_names)
 df_kl_conv = df_kl_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 # ----------------------- Plot --------------------------- #
 #fig_winner = plot_speed_comparison(thresh, scores_time, scores_it, legend=algs)
 #fig_winner.show()
 
 # Median plots
-df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type_x="timings")
+#df_l2_conv_median_time = pp.median_convergence_plot(df_l2_conv, type_x="timings")
 df_kl_conv_median_time = pp.median_convergence_plot(df_kl_conv, type_x="timings")
-df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it)
+#df_l2_conv_median_it = pp.median_convergence_plot(df_l2_conv_it)
 df_kl_conv_median_it = pp.median_convergence_plot(df_kl_conv_it)
-
-# Convergence plots with all runs
-pxfig = px.line(df_l2_conv_median_time, 
-            x="timings", 
-            y= "errors", 
-            color='algorithm',
-            line_dash='algorithm',
-            log_y=True,
-            #error_y="q_errors_p", 
-            #error_y_minus="q_errors_m", 
-)
-
-pxfigit = px.line(df_l2_conv_median_it, 
-            x="it", 
-            y= "errors", 
-            color='algorithm',
-            line_dash='algorithm',
-            log_y=True,
-            #error_y="q_errors_p", 
-            #error_y_minus="q_errors_m", 
-)
-
-# Final touch
-pxfig.update_traces(
-    selector=dict(),
-    line_width=2.5,
-    #error_y_thickness = 0.3,
-)
-
-pxfig.update_layout(
-    title_text = "NLS",
-    font_size = 12,
-    width=450*1.62/2, # in px
-    height=450,
-    #xaxis=dict(range=[0,0.5], title_text="Time (s)"),
-    #yaxis=dict(range=np.log10([2e-7,7e-7]), title_text="Fit")
-)
-
-pxfig.update_xaxes(
-    matches = None,
-    showticklabels = True
-)
-pxfig.update_yaxes(
-    matches=None,
-    showticklabels=True
-)
-pxfigit.update_traces(
-    selector=dict(),
-    line_width=2.5,
-    #error_y_thickness = 0.3,
-)
-
-pxfigit.update_layout(
-    title_text = "NLS",
-    font_size = 12,
-    width=450*1.62/2, # in px
-    height=450,
-    #xaxis=dict(range=[0,0.5], title_text="Time (s)"),
-    #yaxis=dict(range=np.log10([2e-7,7e-7]), title_text="Fit")
-)
-
-pxfigit.update_xaxes(
-    matches = None,
-    showticklabels = True
-)
-pxfigit.update_yaxes(
-    matches=None,
-    showticklabels=True
-)
-
-
-
-pxfig.write_image("Results/"+name+"_fro.pdf")
-pxfig.write_image("Results/"+name+"_fro.pdf")
-pxfigit.write_image("Results/"+name+"_fro_it.pdf")
-pxfig.show()
-pxfigit.show()
-
 
 pxfig2 = px.line(df_kl_conv_median_time, 
             x="timings", 
             y= "errors", 
             color='algorithm',
             line_dash='algorithm',
+            facet_col="rank",
+            facet_col_wrap=2,
             log_y=True,
+            log_x=True,
+            facet_col_spacing=0.07,
+            facet_row_spacing=0.17,
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
 )
-pxfig2it = px.line(df_kl_conv_median_it, 
+pxfig2it = px.line(df_kl_conv_it,  #_median_it, 
             x="it", 
             y= "errors", 
             color='algorithm',
             line_dash='algorithm',
             log_y=True,
+            line_group="groups",
+            facet_col="rank",
+            facet_col_wrap=2,
+            facet_col_spacing=0.07,
+            facet_row_spacing=0.17
             #error_y="q_errors_p", 
             #error_y_minus="q_errors_m", 
 )
@@ -321,11 +228,13 @@ pxfig2.update_traces(
 
 pxfig2.update_layout(
     title_text = "NLS",
-    font_size = 12,
-    width=450*1.62/2, # in px
-    height=450,
-    #xaxis=dict(range=[0,4],title_text="Time (s)"),
-    #yaxis=dict(title_text="Fit")
+    font_size = 10,
+    width=450, # in px
+    height=350,
+    xaxis1=dict(title_text="Time (s)"),
+    xaxis2=dict(title_text="Time (s)"),
+    yaxis1=dict(title_text="Loss"),
+    yaxis3=dict(title_text="Loss")
 )
 
 pxfig2.update_xaxes(
@@ -345,9 +254,9 @@ pxfig2it.update_traces(
 
 pxfig2it.update_layout(
     title_text = "NLS",
-    font_size = 12,
-    width=450*1.62/2, # in px
-    height=450,
+    font_size = 10,
+    width=450, # in px
+    height=350,
     #xaxis=dict(range=[0,4],title_text="Time (s)"),
     #yaxis=dict(title_text="Fit")
 )
@@ -364,6 +273,84 @@ pxfig2.write_image("Results/"+name+"_kl.pdf")
 pxfig2it.write_image("Results/"+name+"_kl_it.pdf")
 pxfig2.show()
 pxfig2it.show()
+# Convergence plots with all runs
+#pxfig = px.line(df_l2_conv_median_time, 
+            #x="timings", 
+            #y= "errors", 
+            #color='algorithm',
+            #line_dash='algorithm',
+            #log_y=True,
+            ##error_y="q_errors_p", 
+            ##error_y_minus="q_errors_m", 
+#)
+
+#pxfigit = px.line(df_l2_conv_median_it, 
+            #x="it", 
+            #y= "errors", 
+            #color='algorithm',
+            #line_dash='algorithm',
+            #log_y=True,
+            ##error_y="q_errors_p", 
+            ##error_y_minus="q_errors_m", 
+#)
+
+## Final touch
+#pxfig.update_traces(
+    #selector=dict(),
+    #line_width=2.5,
+    ##error_y_thickness = 0.3,
+#)
+
+#pxfig.update_layout(
+    #title_text = "NLS",
+    #font_size = 12,
+    #width=450*1.62/2, # in px
+    #height=450,
+    ##xaxis=dict(range=[0,0.5], title_text="Time (s)"),
+    ##yaxis=dict(range=np.log10([2e-7,7e-7]), title_text="Fit")
+#)
+
+#pxfig.update_xaxes(
+    #matches = None,
+    #showticklabels = True
+#)
+#pxfig.update_yaxes(
+    #matches=None,
+    #showticklabels=True
+#)
+#pxfigit.update_traces(
+    #selector=dict(),
+    #line_width=2.5,
+    ##error_y_thickness = 0.3,
+#)
+
+#pxfigit.update_layout(
+    #title_text = "NLS",
+    #font_size = 12,
+    #width=450*1.62/2, # in px
+    #height=450,
+    ##xaxis=dict(range=[0,0.5], title_text="Time (s)"),
+    ##yaxis=dict(range=np.log10([2e-7,7e-7]), title_text="Fit")
+#)
+
+#pxfigit.update_xaxes(
+    #matches = None,
+    #showticklabels = True
+#)
+#pxfigit.update_yaxes(
+    #matches=None,
+    #showticklabels=True
+#)
+
+
+
+#pxfig.write_image("Results/"+name+"_fro.pdf")
+#pxfig.write_image("Results/"+name+"_fro.pdf")
+#pxfigit.write_image("Results/"+name+"_fro_it.pdf")
+#pxfig.show()
+#pxfigit.show()
+
+
 
 
 # Winner at given threshold plots

@@ -17,7 +17,7 @@ from nimfa.methods import seeding
 def nmf(data, rank, init = "random", U_0 = None, V_0 = None, n_iter_max=100, tol=1e-8,
         update_rule = "hals", beta = 2,
         sparsity_coefficients = [None, None], fixed_modes = [], normalize = [False, False],
-        verbose=False, return_costs=False, NbIter_inner=20, delta=0.1):
+        verbose=False, return_costs=False, NbIter_inner=20, delta=0.1, print_it=100):
     """
     ======================================
     Nonnegative Matrix Factorization (NMF)
@@ -121,6 +121,8 @@ def nmf(data, rank, init = "random", U_0 = None, V_0 = None, n_iter_max=100, tol
         Default: False
     NbIter_inner: int
         Indicates the number of inner loops (in HALS only)
+    print_it: int
+        Number of iterations after which the errors are printed in the console. Default: 100
 
     Returns
     -------
@@ -185,13 +187,13 @@ def nmf(data, rank, init = "random", U_0 = None, V_0 = None, n_iter_max=100, tol
     return compute_nmf(data, rank, U_0, V_0, n_iter_max=n_iter_max, tol=tol,
                        update_rule = update_rule, beta = beta,
                        sparsity_coefficients = sparsity_coefficients, fixed_modes = fixed_modes, normalize = normalize,
-                       verbose=verbose, return_costs=return_costs, NbIter_inner=NbIter_inner, delta=delta)
+                       verbose=verbose, return_costs=return_costs, NbIter_inner=NbIter_inner, delta=delta, print_it=print_it)
 
 # Author : Jeremy Cohen, modified by Axel Marmoret
 def compute_nmf(data, rank, U_in, V_in, n_iter_max=100, tol=1e-8,
                 update_rule = "hals", beta = 2,
                 sparsity_coefficients = [None, None], fixed_modes = [], normalize = [False, False],
-                verbose=False, return_costs=False, NbIter_inner=20, delta=0.1):
+                verbose=False, return_costs=False, NbIter_inner=20, delta=0.1, print_it=100):
     """
     Computation of a Nonnegative matrix factorization via
     hierarchical alternating least squares (HALS) [1],
@@ -252,6 +254,8 @@ def compute_nmf(data, rank, U_in, V_in, n_iter_max=100, tol=1e-8,
         Default: False
     NbIter_inner: int
         Indicates the number of inner loops in HALS
+    print_it: int
+        Number of iterations after which the errors are printed in the console. Default: 100
 
     Returns
     -------
@@ -280,7 +284,6 @@ def compute_nmf(data, rank, U_in, V_in, n_iter_max=100, tol=1e-8,
     tic = time.perf_counter()
     toc = [0]
     cnt = []
-    print_it = 100
 
     if sparsity_coefficients == None:
         sparsity_coefficients = [None, None]

@@ -26,7 +26,7 @@ def compute_error(Vnorm_sq,WtW,H,WtV,error_norm):
 #------------------------------------
 # PMF algorithm version Lee and Seung
 
-def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf):
+def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, print_it=100, delta=np.inf):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -35,7 +35,7 @@ def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, p
         [1] Daniel D. Lee and H. Sebastian Seung.  Learning the parts of objects by non-negative matrix factorization.
         Nature, 1999
         [2]   Daniel D. Lee and H. Sebastian Seung. Algorithms for non-negative matrix factorization. In
-        Advances in Neural Information Processing Systems. MIT Press, 2001
+        Advances in Neural :nformation Processing Systems. MIT Press, 2001
     
     Parameters
     ----------
@@ -60,7 +60,7 @@ def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, p
     delta: float
         relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
         A good value empirically: 0.5
-        default: np.Inf (no dynamic stopping)
+        default: np.inf (no dynamic stopping)
 
     Returns
     -------
@@ -119,7 +119,7 @@ def NMF_Lee_Seung(V, W, H0, NbIter, legacy=False, epsilon=1e-8, verbose=False, p
 #------------------------------------
 #  NMF algorithm proposed version
 
-def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9, method="fastMU"):
+def NMF_proposed_Frobenius(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, delta=np.inf, gamma=1.9, method="mSOM"):
     
     """
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -143,11 +143,11 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print
     delta: float
         relative change between first and next inner iterations that should be reached to stop inner iterations dynamically.
         A good value empirically: 0.4
-        default: np.Inf (no dynamic stopping)
+        default: np.inf (no dynamic stopping)
     method: string
         select the choice of majorant
-        "fastMU" minimizes the median of inverse step sizes
-        "trueMU" uses the approximate Hessian proposed by Lee and Seung, with aggressive stepsize.
+        "mSOM" minimizes the median of inverse step sizes
+        "MUSOM" uses the approximate Hessian proposed by Lee and Seung, with aggressive stepsize.
 
     Returns
     -------
@@ -167,12 +167,12 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print
     tic = time.perf_counter()
 
     if verbose:
-        print("\n--------- MU proposed running ----------")
+        print(f"\n--------- {method} proposed running ----------")
     
     # FIXED W ESTIMATE H
     A1 = W.T.dot(W)
     B1 = W.T@V
-    if method == "fastMU":
+    if method == "mSOM":
         aux_H = gamma/repmat(np.sum(A1, axis=1)[:, None], 1, V.shape[1])
 
     error_norm = np.prod(V.shape)
@@ -180,12 +180,12 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print
     error = [compute_error(Vnorm_sq, A1, H, B1, error_norm)]
     
     inner_change_0 = 1
-    inner_change_l = np.Inf
+    inner_change_l = np.inf
     for k in range(NbIter):
         
         A1H = A1.dot(H)
         
-        if method == "trueMU":
+        if method == "MUSOM":
             aux_H = gamma*H/A1H
         
         Hnew = np.maximum(H + aux_H*(B1 - A1H), epsilon)
@@ -209,7 +209,7 @@ def NMF_proposed_Frobenius(V , W, H0, NbIter, epsilon=1e-8, verbose=False, print
 
 ################## Gradient descent method
 
-def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf, gamma=1.9):
+def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, delta=np.inf, gamma=1.9):
     
     """"
     The goal of this method is to factorize (approximately) the non-negative (entry-wise) matrix V by WH i.e
@@ -261,7 +261,7 @@ def Grad_descent(V, W, H0, NbIter, epsilon=1e-8, verbose=False, print_it=100, de
     error = [compute_error(Vnorm_sq,Aw,H,WtV,error_norm)]
 
     inner_change_0 = 1
-    inner_change_l = np.Inf
+    inner_change_l = np.inf
     for k in range(NbIter):
         deltaH =  np.maximum((gamma/normAw)*(WtV - Aw@H),epsilon-H)
         H = H + deltaH
@@ -307,7 +307,7 @@ def OGM_H(WtV, H, Aw, L, nb_inner, epsilon, delta, V, W, print_it=100, verbose=F
     Y = H.copy()
     alpha = 1
     inner_change_0 = 1
-    inner_change_l = np.Inf
+    inner_change_l = np.inf
     for ih in range(nb_inner):
         H_ = H.copy()
         alpha_ = alpha 
@@ -334,7 +334,7 @@ def OGM_H(WtV, H, Aw, L, nb_inner, epsilon, delta, V, W, print_it=100, verbose=F
     return H, error, toc
 
          
-def NeNMF(V, W, H0, itermax=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.Inf):
+def NeNMF(V, W, H0, itermax=10000, epsilon=1e-8, verbose=False, print_it=100, delta=np.inf):
     
     tic = time.perf_counter()
     H = H0.copy()
@@ -349,7 +349,7 @@ def NeNMF(V, W, H0, itermax=10000, epsilon=1e-8, verbose=False, print_it=100, de
     return error, H, toc
 
 
-def NeNMF_optimMajo(V, W, H0, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_best=False, delta=np.Inf, gamma=1):
+def NeNMF_optimMajo(V, W, H0, itermax = 10000, print_it=100, epsilon=1e-8, verbose=False, use_best=False, delta=np.inf, gamma=1):
     
     tic = time.perf_counter()
     H = H0.copy()

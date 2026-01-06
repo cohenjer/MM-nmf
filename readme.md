@@ -54,3 +54,7 @@ uses local stored result to produce figures
 python runscript.py xx
 ``` 
 with xx some natural number runs all the experiments with xx samples, stores the results and produces figures.
+
+## Requirements
+
+TODO python version

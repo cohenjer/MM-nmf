@@ -11,10 +11,6 @@ import sys
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
 
-#ToChange for new shootout version:
-# - nbseed -> seeds and skip
-# - type_x for median
-
 # Personnal comparison toolbox
 # you can get it at 
 # https://github.com/cohenjer/shootout
@@ -31,18 +27,20 @@ else:
 
 variables = {
     "add_track" : {"distribution" : "uniform"},
-    "mnr" : [[200,100,5], [1000,400,20]],
+    "mnr" : [[200,100,10], [1000,400,20]],
     "NbIter" : [200], # for Lee and Seung also
+    "NbIter_HALS": [100],
     "SNR" : [100, 30],
     "delta" : 0,
     "seed" : seeds,
     "distribution" : "uniform",
     "show_it" : 100,
-    "epsilon" : 1e-8
+    "epsilon" : 1e-16
 }
 
-algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro", "trueMU_Fro"]
-name = "l2_nls_run-12-07-2024"
+#algs = ["MU_Fro","fastMU_Fro_ex","GD_Fro", "NeNMF_Fro", "HALS", "fastMU_Fro", "trueMU_Fro"]
+algs = ["MU", "PGD", "NeNMF",  "HALS", "mSOM", "MUSOM"]
+name = "l2_nls_run-14-04-2025"
 
 @run_and_track(algorithm_names=algs, path_store="Results/", name_store=name, skip=skip,
                **variables)
@@ -57,7 +55,7 @@ def one_run(**cfg):
     # prints
     verbose = True
 
-        # adding Gaussian noise to the observed data
+    # adding Gaussian noise to the observed data
     N = rng.randn(m, n)
     sigma = 10**(-cfg["SNR"]/20)*np.linalg.norm(Vorig)/np.linalg.norm(N)
     V = Vorig + sigma*N
@@ -70,6 +68,7 @@ def one_run(**cfg):
 
     # Baselines
     error0, H0, toc0 = nls_f.NMF_Lee_Seung(V,  Worig, Hini, cfg["NbIter"], legacy=False, delta=cfg["delta"], verbose=verbose)
+    #error1, H1, toc1  = nls_f.NeNMF_optimMajo(V, Worig, Hini, itermax=cfg["NbIter"], delta=cfg["delta"], verbose=verbose, gamma=1)
     error2, H2, toc2  = nls_f.Grad_descent(V , Worig, Hini, cfg["NbIter"], delta=cfg["delta"], verbose=verbose)
     error3, H3, toc3  = nls_f.NeNMF(V, Worig, Hini, itermax=cfg["NbIter"], delta=cfg["delta"], verbose=verbose)
     
@@ -78,18 +77,17 @@ def one_run(**cfg):
     WtV = Worig.T@V
     WtW = Worig.T@Worig
     toc4_offset = time.perf_counter() - tic
-    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(WtV, WtW, np.copy(Hini), maxiter=cfg["NbIter"], return_error=True, delta=cfg["delta"], M=V)
+    H4, _, _, _, error4, toc4 = nn_fac.nnls.hals_nnls_acc(WtV, WtW, np.copy(Hini), maxiter=cfg["NbIter_HALS"], return_error=True, delta=cfg["delta"], M=V)
     toc4 = [toc4[i] + toc4_offset for i in range(len(toc4))] # leave the 0 in place for init
     toc4[0]=0
 
     # Proposed methods
-    error1, H1, toc1  = nls_f.NeNMF_optimMajo(V, Worig, Hini, itermax=cfg["NbIter"], delta=cfg["delta"], verbose=verbose, gamma=1)
-    error5, H5, toc5 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, cfg["NbIter"], delta=cfg["delta"], verbose=verbose, method="fastMU")
-    error6, H6, toc6 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, cfg["NbIter"], delta=cfg["delta"], verbose=verbose, method="trueMU")
+    error5, H5, toc5 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, cfg["NbIter"], delta=cfg["delta"], verbose=verbose, method="mSOM")
+    error6, H6, toc6 = nls_f.NMF_proposed_Frobenius(V, Worig, Hini, cfg["NbIter"], delta=cfg["delta"], verbose=verbose, method="MUSOM")
 
     return {
-            "errors": [error0, error1, error2, error3, error4, error5, error6],
-            "timings": [toc0, toc1, toc2, toc3, toc4, toc5, toc6],
+            "errors": [error0, error2, error3, error4, error5, error6],
+            "timings": [toc0, toc2, toc3, toc4, toc5, toc6],
            }
 
 
@@ -100,12 +98,12 @@ pio.templates.default= "plotly_white"
 
 df = pd.read_pickle("Results/"+name)
 
-# Remove extrapolation
-df = df[df["algorithm"] != "fastMU_Fro_ex"]
+# Remove extrapolation (older runs had it)
+#df = df[df["algorithm"] != "fastMU_Fro_ex"]
 
 # Interpolating time (choose fewer points for better vis), adaptive grid since time varies across plots
 ovars_inter = ["mnr", "SNR", "algorithm"]
-df = pp.interpolate_time_and_error(df, npoints = 100, adaptive_grid=True, groups=ovars_inter)#, strategy="min_curve")
+df = pp.interpolate_time_and_error(df, npoints=df["NbIter"][0], adaptive_grid=True, groups=ovars_inter)#, strategy="min_curve")
 
 ovars = ["mnr", "SNR", "seed"]
 # Making a convergence plot dataframe
@@ -121,6 +119,8 @@ df_conv_median_it = pp.median_convergence_plot(df_conv, mean=False) # ca fait qu
 # Convergence plots with all runs
 pxfig = px.line(#df_conv_median_time, 
             df_conv_median_time,
+            width=450, # in px
+            height=350,
             #x="timings", 
             x="timings", 
             y= "errors", 
@@ -129,6 +129,7 @@ pxfig = px.line(#df_conv_median_time,
             facet_col="mnr",
             facet_row="SNR",
             log_y=True,
+            log_x=True,
             facet_col_spacing=0.1,
             facet_row_spacing=0.1,
             #line_group="groups",
@@ -144,20 +145,22 @@ pxfig.update_traces(
 )
 
 pxfig.update_layout(
-    font_size = 12,
-    width=450*1.62, # in px
-    height=450,
-    xaxis1=dict(range=[0,0.05], title_text="Time (s)"),
-    xaxis3=dict(range=[0,0.05]),
-    xaxis2=dict(range=[0,0.01], title_text="Time (s)"),
-    xaxis4=dict(range=[0,0.005]),
-    yaxis1=dict(title_text="Fit"),
-    yaxis3=dict(title_text="Fit")
+    font_size=10,
+    #width=230*1.62, # in px
+    #height=230,
+    xaxis1=dict(title_text="Time (s)"),
+    xaxis2=dict(title_text="Time (s)"),
+    #xaxis1=dict(range=[0,0.05], title_text="Time (s)"),
+    #xaxis3=dict(range=[0,0.05]),
+    #xaxis2=dict(range=[0,0.02], title_text="Time (s)"),
+    #xaxis4=dict(range=[0,0.02]),
+    yaxis1=dict(title_text="n. Loss"),
+    yaxis3=dict(title_text="n. Loss")
 )
 
 pxfig.update_xaxes(
     matches = None,
-    showticklabels = True
+    #showticklabels = True
 )
 pxfig.update_yaxes(
     matches=None,
@@ -166,11 +169,13 @@ pxfig.update_yaxes(
 # updating titles
 for i,ann in enumerate(pxfig.layout.annotations):
     if ann.text[:3]=="mnr":
-        ann.text="[m,n,r]"+ann.text[3:] 
+        ann.text="[M,N,R]"+ann.text[3:] 
 
 # Convergence plots with all runs
 pxfigit = px.line(#df_conv_median_time, 
             df_conv_median_it,
+            width=450, # in px
+            height=350,
             #x="timings", 
             x="it", 
             y= "errors", 
@@ -194,20 +199,20 @@ pxfigit.update_traces(
 )
 
 pxfigit.update_layout(
-    font_size = 12,
-    width=450*1.62, # in px
-    height=450,
+    font_size=10,
+    #width=230*1.62, # in px
+    #height=230,
     #xaxis1=dict(range=[0,0.05], title_text="Iters"),
     #xaxis3=dict(range=[0,0.05]),
     #xaxis2=dict(range=[0,0.01], title_text="Iters"),
     #xaxis4=dict(range=[0,0.005]),
-    yaxis1=dict(title_text="Fit"),
-    yaxis3=dict(title_text="Fit")
+    yaxis1=dict(title_text="n. Loss"),
+    yaxis3=dict(title_text="n. Loss")
 )
 
 pxfigit.update_xaxes(
     matches = None,
-    showticklabels = True
+    #showticklabels = True
 )
 pxfigit.update_yaxes(
     matches=None,
@@ -216,7 +221,7 @@ pxfigit.update_yaxes(
 # updating titles
 for i,ann in enumerate(pxfigit.layout.annotations):
     if ann.text[:3]=="mnr":
-        ann.text="[m,n,r]"+ann.text[3:] 
+        ann.text="[M,N,R]"+ann.text[3:] 
 
 
 

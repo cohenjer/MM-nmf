@@ -3,9 +3,8 @@ from matplotlib import pyplot as plt
 import NLS_KL as nls_kl
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import sys
-from utils import sparsify, nearest_neighbour_H, absls, opt_scaling
+from utils import sparsify, opt_scaling
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
 
@@ -28,19 +27,20 @@ else:
 
 variables = {
     "add_track" : {"distribution" : "uniform"},
-    "mnr" : [[200,500,40]], # TODO change sizes
+    "mnr" : [[200,100,10]],
     "NbIter" : [300], # for Lee and Seung also
-    "SNR" : [100],#, 30],
+    "NbIter_SN": [100],
+    "SNR" : [100, 20],  #5000 and 50 photons
     "delta" : 0,
-    "setup" : ["dense","fac sparse","fac data sparse","data sparse"],
+    "setup" : ["dense", "sparse"],  #["dense","fac sparse","fac data sparse","data sparse"],
     "seed" : seeds, 
     "distribution" : "uniform",
     "show_it" : 100,
-    "epsilon" : 1e-8,
+    "epsilon" : 1e-16,
 }
 
-algs = ["MU_KL", "fastMU_KL", "trueMU_KL", "Scalar Newton CCD"]
-name = "KL_nls_sparse_run_04-06-2024"
+algs = ["MU", "mSOM", "MUSOM", "SN CCD"]  #,"SUM Convergent"]
+name = "KL_nls_sparse_run_14-04-2025"
 
 @run_and_track(
         algorithm_names = algs, name_store=name,
@@ -56,36 +56,40 @@ def one_run(verbose=True, **cfg):
     # Sparsifying
     # Setup 1
     match cfg["setup"]:
-        case "dense":# Dense
-            Vorig = Worig.dot(Horig) # densified
-        case "fac sparse":# sparse factors, dense data
+        case "dense":  # Dense
+            Vorig = Worig.dot(Horig)  # densified
+        #case "fac sparse":# sparse factors, dense data
+        #    Worig = sparsify(Worig, s=0.5, epsilon=cfg["epsilon"])
+        #    Horig = sparsify(Horig, s=0.5, epsilon=cfg["epsilon"])
+        #    Vorig = Worig.dot(Horig) + 0.01 # densified
+        case "sparse":  # sparse factors and data
             Worig = sparsify(Worig, s=0.5, epsilon=cfg["epsilon"])
             Horig = sparsify(Horig, s=0.5, epsilon=cfg["epsilon"])
-            Vorig = Worig.dot(Horig) + 0.01 # densified
-        case "fac data sparse":# sparse factors and data
-            Worig = sparsify(Worig, s=0.5, epsilon=cfg["epsilon"])
-            Horig = sparsify(Horig, s=0.5, epsilon=cfg["epsilon"])
-            Vorig = Worig.dot(Horig) #+ 0.1 # densified
-            Vorig = sparsify(Vorig, s=0.5, epsilon=r*cfg["epsilon"]**2)
-        case "data sparse":# dense factors, sparse data
-            Vorig = Worig.dot(Horig) #+ 0.1 # densified
-            Vorig = sparsify(Vorig, s=0.5, epsilon=r*cfg["epsilon"]**2)
+            Vorig = Worig.dot(Horig)  #+ 0.1 # densified
+            #Vorig = sparsify(Vorig, s=0.5, epsilon=r*cfg["epsilon"]**2)
+        #case "data sparse":# dense factors, sparse data e.g. missing data --> non sense ?
+            #Vorig = Worig.dot(Horig) #+ 0.1 # densified
+            #Vorig = sparsify(Vorig, s=0.5, epsilon=r*cfg["epsilon"]**2)
 
     # Sparsifying
     #print(f"Estce que {np.min(Vorig)} et {r*epsilon**2} sont égaux")
     
     # adding Poisson noise to the observed data
     #N = np.random.poisson(1,size=Vorig.shape) # integers
-    N = rng.rand(m,n) # uniform
-    sigma = 10**(-cfg["SNR"]/20)*np.linalg.norm(Vorig)/np.linalg.norm(N)
-    V = Vorig + sigma*N
+    #N = rng.rand(m,n) # uniform
+    #sigma = 10**(-cfg["SNR"]/20)*np.linalg.norm(Vorig)/np.linalg.norm(N)
+    #V = Vorig + sigma*N
     
+    # Generating data with Poisson distribution
+    sigma = 0.5*10**(cfg["SNR"]/10)  # intensity for the target SNR, mean x value 0.5
+    V = np.random.poisson(sigma*Vorig)
+    V = V/np.max(V) # [0,1] normalization
     
     # Initialization for H0 as a random matrix
     Hini = rng.rand(r, n)  # TODO better init ?
     # scaling
     lamb = opt_scaling(V, Worig@Hini)
-    Hini = lamb*Hini
+    Hini = np.maximum(lamb*Hini, cfg["epsilon"])
     #print(lamb)
     
     # scaled nn
@@ -97,10 +101,21 @@ def one_run(verbose=True, **cfg):
     #from IPython import embed; embed()
 
     #_, Hxx, _ = nls_kl.Lee_Seung_KL(V, Worig, Hini, NbIter=50, verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], epsilon=cfg[ "epsilon" ])
+    
+    # MU
     error0, H0, toc0 = nls_kl.Lee_Seung_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], epsilon=cfg["epsilon"])
-    error1, H1, toc1 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], gamma=1.9, epsilon=cfg["epsilon"])
-    error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], gamma=1.9, method="trueMU", epsilon=cfg["epsilon"])
-    error3, H3, toc3 = nls_kl.ScalarNewton(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], method="CCD")
+    
+    # mSOM
+    error1, H1, toc1 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], gamma=1.9, method="mSOM", epsilon=cfg["epsilon"])
+    
+    # MuSOM
+    error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], gamma=1.9, method="MUSOM", epsilon=cfg["epsilon"])
+    
+    # SN CCD (init scaled comme les autres)
+    error3, H3, toc3 = nls_kl.ScalarNewton(V, Worig, Hini, NbIter=cfg["NbIter_SN"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], method="CCD")
+    
+    
+    #error4, H4, toc4 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], gamma=1., epsilon=cfg["epsilon"]) # Check cost maj, this one has guarantees with SUM TODO check gamma
     
     #error2, H2, toc2 = nls_kl.GD_KL(V, Worig, Hini, NbIter=cfg["NbIter"], verbose=verbose, print_it=cfg["show_it"], delta=cfg["delta"], epsilon=cfg["epsilon"])
     #error2, H2, toc2 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=False)
@@ -108,8 +123,8 @@ def one_run(verbose=True, **cfg):
     #error4, H4, toc4 = nls_kl.Proposed_KL(V, Worig, Hini, NbIter=NbIter, verbose=verbose, print_it=show_it, delta=delta, use_LeeS=False, gamma=1.9, epsilon=epsilon, true_hessian=False)
 
     return {
-        "errors": [error0, error1, error2, error3],  # ,error4], 
-        "timings": [toc0, toc1, toc2, toc3],  # ,toc4]
+        "errors": [error0, error1, error2, error3],  #, error4], 
+        "timings": [toc0, toc1, toc2, toc3]  #, toc4]
             }
 
 
@@ -123,12 +138,12 @@ df = pd.read_pickle("Results/"+name)
 #df = pp.regroup_columns(df, keys=["mnr"], how_many=3)
 # Making a convergence plot dataframe
 ovars_interp = ["mnr", "setup", "algorithm", "SNR"]
-df = pp.interpolate_time_and_error(df, npoints = 300, adaptive_grid=True, groups=ovars_interp)
+df = pp.interpolate_time_and_error(df, npoints = df["NbIter"][0], adaptive_grid=True, groups=ovars_interp)
 
 #for setup in ["dense","fac sparse","fac data sparse","data sparse"]:
 # We will show convergence plots for various sigma values, with only n=100
-ovars = ["mnr", "SNR", "setup"]
-df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars, err_name="errors_interp", time_name="timings_interp")#, filters=dict({"mnr": "[2000, 1000, 40]"}))
+ovars = ["mnr", "SNR", "setup", "seed"]
+df_conv = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars, err_name="errors_interp", time_name="timings_interp")
 df_conv = df_conv.rename(columns={"timings_interp": "timings", "errors_interp": "errors"})
 df_conv_it = pp.df_to_convergence_df(df, groups=True, groups_names=ovars, other_names=ovars)#, filters=dict({"mnr": "[2000, 1000, 40]"}))
 
@@ -142,10 +157,11 @@ pxfig = px.line(df_conv_median_time,
             y= "errors", 
             color='algorithm',
             line_dash='algorithm',
-            #facet_row="SNR",
+            facet_row="SNR",
             facet_col="setup",
             facet_col_wrap=2,
             log_y=True,
+            log_x=True,
             facet_col_spacing=0.1,
             facet_row_spacing=0.1,
             #error_y="q_errors_p", 
@@ -160,21 +176,23 @@ pxfig.update_traces(
 )
 
 pxfig.update_layout(
-    font_size = 12,
+    font_size = 10,
     #title_text = f"NLS Results for Setup {setup}",
-    width=600*1.62, # in px
-    height=600,
-    xaxis1=dict(range=[0,5], title_text="Time (s)"),
-    xaxis3=dict(range=[0,5]),
-    xaxis2=dict(range=[0,15],title_text="Time (s)"),
-    xaxis4=dict(range=[0,15]),
-    yaxis1=dict(title_text="Fit"),
-    yaxis3=dict(title_text="Fit")
+    width=450, # in px
+    height=350,
+    #xaxis1=dict(range=[0, 0.2], title_text="Time (s)"),
+    #xaxis3=dict(range=[0, 0.2]),
+    #xaxis2=dict(range=[0, 0.2], title_text="Time (s)"),
+    #xaxis4=dict(range=[0, 0.2]),
+    xaxis1=dict(title_text="Time (s)"),
+    xaxis2=dict(title_text="Time (s)"),
+    yaxis1=dict(title_text="Loss"),
+    yaxis3=dict(title_text="Loss")
 )
 
 pxfig.update_xaxes(
     matches = None,
-    showticklabels = True
+    #showticklabels = True
 )
 pxfig.update_yaxes(
     matches=None,
@@ -187,7 +205,7 @@ pxfigit = px.line(df_conv_median_it,
             y= "errors", 
             color='algorithm',
             line_dash='algorithm',
-            #facet_row="SNR",
+            facet_row="SNR",
             facet_col="setup",
             facet_col_wrap=2,
             log_y=True,
@@ -205,21 +223,17 @@ pxfigit.update_traces(
 )
 
 pxfigit.update_layout(
-    font_size = 12,
+    font_size = 10,
     #title_text = f"NLS Results for Setup {setup}",
-    width=600*1.62, # in px
-    height=600,
-    #xaxis1=dict(range=[0,5], title_text="Time (s)"),
-    #xaxis3=dict(range=[0,5]),
-    #xaxis2=dict(range=[0,15],title_text="Time (s)"),
-    #xaxis4=dict(range=[0,15]),
-    yaxis1=dict(title_text="Fit"),
-    yaxis3=dict(title_text="Fit")
+    width=450, # in px
+    height=350,
+    yaxis1=dict(title_text="Loss"),
+    yaxis3=dict(title_text="Loss")
 )
 
 pxfigit.update_xaxes(
     matches = None,
-    showticklabels = True
+    #showticklabels = True
 )
 pxfigit.update_yaxes(
     matches=None,
