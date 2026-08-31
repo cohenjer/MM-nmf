@@ -389,7 +389,7 @@ def Proposed_KL(V, W, Hini, ind0=None, ind1=None, NbIter=10000, epsilon=1e-8, ve
             
         if method == "MUSOM":
             temp_grad = W.T@(V/WH)
-            aux_H = gamma*H/temp_grad
+            aux_H = gamma*H/sum_W
             # Preconditionned proximal gradient step
             Hnew = np.maximum(H + aux_H*(temp_grad - sum_W), epsilon)
         elif method == "mSOM":

@@ -520,7 +520,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
             #else:
             if method == "AMUSOM":
                 temp_grad = (V/WH).dot(H.T)
-                aux_W = gamma*W/temp_grad
+                aux_W = gamma*W/sum_H
                 deltaW = np.maximum(aux_W*(temp_grad - sum_H), epsilon-W)
             elif method == "AmSOM":
                 aux_W = gamma*1/((V/WH**2).dot(HH2))
@@ -547,7 +547,7 @@ def Proposed_KL(V, Wini, Hini, ind0=None, ind1=None, nb_inner=10,
         for ih in range(nb_inner):
             if method == "trueMU":
                 temp_grad = (W.T).dot(V/WH)
-                aux_H = gamma*H/temp_grad
+                aux_H = gamma*H/sum_W
                 deltaH = np.maximum(aux_H*(temp_grad - sum_W), epsilon-H)
             else:
                 aux_H = gamma*1/(WW2.dot(V/(WH**2)))
